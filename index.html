@@ -31,11 +31,15 @@
           <span class="label">当前判断</span>
           <strong id="overallSignal">-</strong>
         </div>
+        <div>
+          <span class="label">平均回访收益</span>
+          <strong id="averageReturn">-</strong>
+        </div>
       </section>
 
       <section class="notice">
         <strong>使用边界：</strong>
-        这是研究观察池，不是自动买卖指令。真正下单前，请复核实时行情、公告、财报和个人仓位。
+        这是研究观察池，不是自动买卖指令。回访收益用于检验模型，不代表未来收益。真正下单前，请复核实时行情、公告、财报和个人仓位。
       </section>
 
       <nav class="tabs" aria-label="筛选观察状态">
@@ -67,12 +71,15 @@
           <div><span>收盘价</span><strong class="close-price"></strong></div>
           <div><span>观察区间</span><strong class="watch-zone"></strong></div>
           <div><span>不追高线</span><strong class="no-chase"></strong></div>
+          <div><span>回访收益</span><strong class="tracking-return"></strong></div>
           <div><span>评分</span><strong class="score"></strong></div>
         </div>
         <div class="detail" hidden>
           <p class="logic"></p>
           <dl>
             <div><dt>产业链位置</dt><dd class="theme"></dd></div>
+            <div><dt>首次推荐</dt><dd class="first-recommend"></dd></div>
+            <div><dt>回访表现</dt><dd class="tracking-detail"></dd></div>
             <div><dt>价格触发</dt><dd class="trigger"></dd></div>
             <div><dt>仓位提示</dt><dd class="position"></dd></div>
             <div><dt>主要催化</dt><dd class="catalysts"></dd></div>

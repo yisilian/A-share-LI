@@ -14,6 +14,20 @@ const formatNumber = (value, digits = 2) => {
   return Number(value).toFixed(digits);
 };
 
+const formatPercent = (value, digits = 2) => {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) return "-";
+  const number = Number(value);
+  const sign = number > 0 ? "+" : "";
+  return `${sign}${number.toFixed(digits)}%`;
+};
+
+const returnClass = (value) => {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) return "return-flat";
+  if (Number(value) > 0) return "return-positive";
+  if (Number(value) < 0) return "return-negative";
+  return "return-flat";
+};
+
 const byId = (id) => document.getElementById(id);
 
 async function loadPool() {
@@ -34,6 +48,8 @@ function render() {
   byId("asOfDate").textContent = data.as_of_date || "-";
   byId("poolCount").textContent = String(data.stocks?.length || 0);
   byId("overallSignal").textContent = data.summary?.overall_signal || "-";
+  byId("averageReturn").textContent = formatPercent(data.summary?.tracking?.average_return_pct);
+  byId("averageReturn").className = returnClass(data.summary?.tracking?.average_return_pct);
   byId("modelDescription").textContent = data.model?.description || byId("modelDescription").textContent;
   byId("sourceStatus").textContent = `更新时间：${data.generated_at || "-"}；数据源：${data.source_status?.quotes || "-"}；${data.source_status?.note || ""}`;
 
@@ -58,6 +74,8 @@ function createStockCard(stock) {
   const template = byId("stockCardTemplate");
   const node = template.content.firstElementChild.cloneNode(true);
   const status = statusMap[stock.status_key] || { label: stock.intervention_status || "观察", className: "" };
+  const tracking = stock.tracking || {};
+  const trackingReturn = tracking.return_since_first_pct;
 
   node.querySelector(".stock-name").textContent = stock.name;
   node.querySelector(".stock-code").textContent = `${stock.code} · ${stock.board || "主板"}`;
@@ -66,9 +84,17 @@ function createStockCard(stock) {
   node.querySelector(".close-price").textContent = formatNumber(stock.close);
   node.querySelector(".watch-zone").textContent = stock.watch_zone || "-";
   node.querySelector(".no-chase").textContent = formatNumber(stock.no_chase_price);
+  node.querySelector(".tracking-return").textContent = formatPercent(trackingReturn);
+  node.querySelector(".tracking-return").classList.add(returnClass(trackingReturn));
   node.querySelector(".score").textContent = formatNumber(stock.score, 1);
   node.querySelector(".logic").textContent = stock.logic || "";
   node.querySelector(".theme").textContent = stock.theme || "-";
+  node.querySelector(".first-recommend").textContent = tracking.first_recommend_date
+    ? `${tracking.first_recommend_date}，首次价 ${formatNumber(tracking.first_recommend_price)}，已回访 ${tracking.tracking_days ?? 0} 天`
+    : "等待下一次自动刷新后开始记录";
+  node.querySelector(".tracking-detail").textContent = tracking.first_recommend_date
+    ? `${tracking.status || "继续观察"}：累计 ${formatPercent(tracking.return_since_first_pct)}，最高 ${formatPercent(tracking.max_return_since_first_pct)}，距高点 ${formatPercent(tracking.drawdown_from_peak_pct)}。${tracking.comment || ""}`
+    : "暂无历史推荐快照。";
   node.querySelector(".trigger").textContent = stock.trigger_condition || "-";
   node.querySelector(".position").textContent = stock.position_hint || "-";
   node.querySelector(".catalysts").textContent = (stock.catalysts || []).join("、") || "-";

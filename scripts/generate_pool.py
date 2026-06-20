@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import math
-import shutil
 from dataclasses import dataclass, asdict
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
@@ -66,6 +65,179 @@ def round_or_none(value: Any, digits: int = 2) -> float | None:
     if value is None:
         return None
     return round(value, digits)
+
+
+def parse_date_value(value: Any):
+    if not value:
+        return None
+    try:
+        return datetime.strptime(str(value), "%Y-%m-%d").date()
+    except ValueError:
+        return None
+
+
+def load_history_snapshots() -> list[dict[str, Any]]:
+    if not HISTORY_DIR.exists():
+        return []
+
+    snapshots: list[dict[str, Any]] = []
+    for path in sorted(HISTORY_DIR.glob("*.json")):
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+
+        stocks = data.get("stocks")
+        if not isinstance(stocks, list):
+            continue
+
+        snapshots.append(
+            {
+                "as_of_date": data.get("as_of_date") or path.stem,
+                "stocks": stocks,
+            }
+        )
+    return snapshots
+
+
+def attach_tracking(rows: list[dict[str, Any]], as_of_date: str) -> None:
+    entries_by_code: dict[str, dict[str, dict[str, Any]]] = {row["code"]: {} for row in rows}
+
+    for snapshot in load_history_snapshots():
+        snapshot_date = snapshot.get("as_of_date")
+        if not snapshot_date:
+            continue
+        for stock in snapshot.get("stocks", []):
+            code = stock.get("code")
+            if code not in entries_by_code:
+                continue
+            close = safe_float(stock.get("close"))
+            if close is None:
+                continue
+            entries_by_code[code][str(snapshot_date)] = {
+                "date": str(snapshot_date),
+                "close": close,
+                "rank": stock.get("rank"),
+                "status_key": stock.get("status_key"),
+            }
+
+    for row in rows:
+        close = safe_float(row.get("close"))
+        if close is not None:
+            entries_by_code[row["code"]][as_of_date] = {
+                "date": as_of_date,
+                "close": close,
+                "rank": row.get("rank"),
+                "status_key": row.get("status_key"),
+            }
+
+    current_date = parse_date_value(as_of_date)
+
+    for row in rows:
+        series = sorted(
+            entries_by_code[row["code"]].values(),
+            key=lambda item: parse_date_value(item["date"]) or datetime.min.date(),
+        )
+
+        if not series:
+            row["tracking"] = {
+                "status": "待回访",
+                "comment": "暂无历史推荐快照，等待下一次自动刷新后开始跟踪。",
+            }
+            continue
+
+        first = series[0]
+        latest = series[-1]
+        first_close = safe_float(first.get("close"))
+        latest_close = safe_float(latest.get("close"))
+        max_entry = max(series, key=lambda item: safe_float(item.get("close")) or float("-inf"))
+        min_entry = min(series, key=lambda item: safe_float(item.get("close")) or float("inf"))
+        max_close = safe_float(max_entry.get("close"))
+        min_close = safe_float(min_entry.get("close"))
+
+        return_pct = None
+        max_return_pct = None
+        drawdown_from_peak_pct = None
+        if first_close and latest_close is not None:
+            return_pct = (latest_close / first_close - 1) * 100
+        if first_close and max_close is not None:
+            max_return_pct = (max_close / first_close - 1) * 100
+        if latest_close is not None and max_close:
+            drawdown_from_peak_pct = (latest_close / max_close - 1) * 100
+
+        first_date = parse_date_value(first.get("date"))
+        tracking_days = None
+        if first_date and current_date:
+            tracking_days = (current_date - first_date).days
+
+        if return_pct is None:
+            tracking_status = "待回访"
+            comment = "缺少可用价格，暂不评价推荐后表现。"
+        elif return_pct >= 5:
+            tracking_status = "正反馈"
+            comment = "推荐后已有正收益，后续重点跟踪是否继续跑赢自身观察区间。"
+        elif return_pct <= -5:
+            tracking_status = "负反馈"
+            comment = "推荐后跌幅较明显，需要复核产业链逻辑、价格纪律和风控阈值。"
+        else:
+            tracking_status = "继续观察"
+            comment = "推荐后涨跌幅仍在验证区间，继续观察催化剂和量价结构。"
+
+        row["tracking"] = {
+            "status": tracking_status,
+            "first_recommend_date": first.get("date"),
+            "first_recommend_price": round_or_none(first_close),
+            "first_rank": first.get("rank"),
+            "first_status_key": first.get("status_key"),
+            "latest_date": latest.get("date"),
+            "latest_price": round_or_none(latest_close),
+            "tracking_days": tracking_days,
+            "snapshot_count": len(series),
+            "return_since_first_pct": round_or_none(return_pct),
+            "max_return_since_first_pct": round_or_none(max_return_pct),
+            "drawdown_from_peak_pct": round_or_none(drawdown_from_peak_pct),
+            "best_close": round_or_none(max_close),
+            "best_date": max_entry.get("date"),
+            "worst_close": round_or_none(min_close),
+            "worst_date": min_entry.get("date"),
+            "comment": comment,
+        }
+
+
+def build_tracking_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    tracked = [row for row in rows if row.get("tracking", {}).get("return_since_first_pct") is not None]
+    if not tracked:
+        return {
+            "tracked_count": 0,
+            "average_return_pct": None,
+            "positive_count": 0,
+            "negative_count": 0,
+            "best": None,
+            "worst": None,
+        }
+
+    def tracking_return(row: dict[str, Any]) -> float:
+        return float(row["tracking"]["return_since_first_pct"])
+
+    returns = [tracking_return(row) for row in tracked]
+    best = max(tracked, key=tracking_return)
+    worst = min(tracked, key=tracking_return)
+    return {
+        "tracked_count": len(tracked),
+        "average_return_pct": round_or_none(sum(returns) / len(returns)),
+        "positive_count": sum(1 for value in returns if value > 0),
+        "negative_count": sum(1 for value in returns if value < 0),
+        "best": {
+            "code": best["code"],
+            "name": best["name"],
+            "return_since_first_pct": best["tracking"]["return_since_first_pct"],
+        },
+        "worst": {
+            "code": worst["code"],
+            "name": worst["name"],
+            "return_since_first_pct": worst["tracking"]["return_since_first_pct"],
+        },
+    }
 
 
 def load_daily(code: str) -> pd.DataFrame:
@@ -206,6 +378,8 @@ def build_payload() -> dict[str, Any]:
         row["rank"] = index
 
     as_of_date = max(row["as_of_date"] for row in rows)
+    attach_tracking(rows, as_of_date)
+    tracking_summary = build_tracking_summary(rows)
     counts = {
         "total": len(rows),
         "watch": sum(1 for row in rows if row["status_key"] == "watch"),
@@ -236,7 +410,7 @@ def build_payload() -> dict[str, Any]:
             "board_filter": "000/001/002/003/600/601/603/605",
             "candidates": [asdict(candidate) for candidate in CANDIDATES],
         },
-        "summary": {**counts, "overall_signal": overall_signal},
+        "summary": {**counts, "overall_signal": overall_signal, "tracking": tracking_summary},
         "stocks": rows,
     }
 

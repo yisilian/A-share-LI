@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0",
-  "generated_at": "2026-06-20T12:36:20+08:00",
+  "generated_at": "2026-06-20T13:31:00+08:00",
   "as_of_date": "2026-06-18",
   "market": "A股主板",
   "source_status": {
@@ -191,7 +191,23 @@
     "watch": 0,
     "wait": 5,
     "avoid": 5,
-    "overall_signal": "整体偏热，谨慎追高"
+    "overall_signal": "整体偏热，谨慎追高",
+    "tracking": {
+      "tracked_count": 10,
+      "average_return_pct": 0.0,
+      "positive_count": 0,
+      "negative_count": 0,
+      "best": {
+        "code": "000988",
+        "name": "华工科技",
+        "return_since_first_pct": 0.0
+      },
+      "worst": {
+        "code": "000988",
+        "name": "华工科技",
+        "return_since_first_pct": 0.0
+      }
+    }
   },
   "stocks": [
     {
@@ -228,7 +244,26 @@
         "竞争加剧"
       ],
       "as_of_date": "2026-06-18",
-      "rank": 1
+      "rank": 1,
+      "tracking": {
+        "status": "继续观察",
+        "first_recommend_date": "2026-06-18",
+        "first_recommend_price": 177.55,
+        "first_rank": 1,
+        "first_status_key": "avoid",
+        "latest_date": "2026-06-18",
+        "latest_price": 177.55,
+        "tracking_days": 0,
+        "snapshot_count": 1,
+        "return_since_first_pct": 0.0,
+        "max_return_since_first_pct": 0.0,
+        "drawdown_from_peak_pct": 0.0,
+        "best_close": 177.55,
+        "best_date": "2026-06-18",
+        "worst_close": 177.55,
+        "worst_date": "2026-06-18",
+        "comment": "推荐后涨跌幅仍在验证区间，继续观察催化剂和量价结构。"
+      }
     },
     {
       "code": "601138",
@@ -264,7 +299,26 @@
         "短线涨幅后波动"
       ],
       "as_of_date": "2026-06-18",
-      "rank": 2
+      "rank": 2,
+      "tracking": {
+        "status": "继续观察",
+        "first_recommend_date": "2026-06-18",
+        "first_recommend_price": 78.08,
+        "first_rank": 2,
+        "first_status_key": "wait",
+        "latest_date": "2026-06-18",
+        "latest_price": 78.08,
+        "tracking_days": 0,
+        "snapshot_count": 1,
+        "return_since_first_pct": 0.0,
+        "max_return_since_first_pct": 0.0,
+        "drawdown_from_peak_pct": 0.0,
+        "best_close": 78.08,
+        "best_date": "2026-06-18",
+        "worst_close": 78.08,
+        "worst_date": "2026-06-18",
+        "comment": "推荐后涨跌幅仍在验证区间，继续观察催化剂和量价结构。"
+      }
     },
     {
       "code": "002371",
@@ -301,7 +355,26 @@
         "技术验证不确定"
       ],
       "as_of_date": "2026-06-18",
-      "rank": 3
+      "rank": 3,
+      "tracking": {
+        "status": "继续观察",
+        "first_recommend_date": "2026-06-18",
+        "first_recommend_price": 721.04,
+        "first_rank": 3,
+        "first_status_key": "avoid",
+        "latest_date": "2026-06-18",
+        "latest_price": 721.04,
+        "tracking_days": 0,
+        "snapshot_count": 1,
+        "return_since_first_pct": 0.0,
+        "max_return_since_first_pct": 0.0,
+        "drawdown_from_peak_pct": 0.0,
+        "best_close": 721.04,
+        "best_date": "2026-06-18",
+        "worst_close": 721.04,
+        "worst_date": "2026-06-18",
+        "comment": "推荐后涨跌幅仍在验证区间，继续观察催化剂和量价结构。"
+      }
     },
     {
       "code": "002463",
@@ -336,7 +409,26 @@
         "景气预期过满"
       ],
       "as_of_date": "2026-06-18",
-      "rank": 4
+      "rank": 4,
+      "tracking": {
+        "status": "继续观察",
+        "first_recommend_date": "2026-06-18",
+        "first_recommend_price": 147.9,
+        "first_rank": 4,
+        "first_status_key": "avoid",
+        "latest_date": "2026-06-18",
+        "latest_price": 147.9,
+        "tracking_days": 0,
+        "snapshot_count": 1,
+        "return_since_first_pct": 0.0,
+        "max_return_since_first_pct": 0.0,
+        "drawdown_from_peak_pct": 0.0,
+        "best_close": 147.9,
+        "best_date": "2026-06-18",
+        "worst_close": 147.9,
+        "worst_date": "2026-06-18",
+        "comment": "推荐后涨跌幅仍在验证区间，继续观察催化剂和量价结构。"
+      }
     },
     {
       "code": "603228",
@@ -371,7 +463,26 @@
         "板块波动"
       ],
       "as_of_date": "2026-06-18",
-      "rank": 5
+      "rank": 5,
+      "tracking": {
+        "status": "继续观察",
+        "first_recommend_date": "2026-06-18",
+        "first_recommend_price": 81.06,
+        "first_rank": 5,
+        "first_status_key": "wait",
+        "latest_date": "2026-06-18",
+        "latest_price": 81.06,
+        "tracking_days": 0,
+        "snapshot_count": 1,
+        "return_since_first_pct": 0.0,
+        "max_return_since_first_pct": 0.0,
+        "drawdown_from_peak_pct": 0.0,
+        "best_close": 81.06,
+        "best_date": "2026-06-18",
+        "worst_close": 81.06,
+        "worst_date": "2026-06-18",
+        "comment": "推荐后涨跌幅仍在验证区间，继续观察催化剂和量价结构。"
+      }
     },
     {
       "code": "002409",
@@ -407,7 +518,26 @@
         "客户验证周期长"
       ],
       "as_of_date": "2026-06-18",
-      "rank": 6
+      "rank": 6,
+      "tracking": {
+        "status": "继续观察",
+        "first_recommend_date": "2026-06-18",
+        "first_recommend_price": 150.16,
+        "first_rank": 6,
+        "first_status_key": "avoid",
+        "latest_date": "2026-06-18",
+        "latest_price": 150.16,
+        "tracking_days": 0,
+        "snapshot_count": 1,
+        "return_since_first_pct": 0.0,
+        "max_return_since_first_pct": 0.0,
+        "drawdown_from_peak_pct": 0.0,
+        "best_close": 150.16,
+        "best_date": "2026-06-18",
+        "worst_close": 150.16,
+        "worst_date": "2026-06-18",
+        "comment": "推荐后涨跌幅仍在验证区间，继续观察催化剂和量价结构。"
+      }
     },
     {
       "code": "002916",
@@ -443,7 +573,26 @@
         "预期拥挤"
       ],
       "as_of_date": "2026-06-18",
-      "rank": 7
+      "rank": 7,
+      "tracking": {
+        "status": "继续观察",
+        "first_recommend_date": "2026-06-18",
+        "first_recommend_price": 453.8,
+        "first_rank": 7,
+        "first_status_key": "avoid",
+        "latest_date": "2026-06-18",
+        "latest_price": 453.8,
+        "tracking_days": 0,
+        "snapshot_count": 1,
+        "return_since_first_pct": 0.0,
+        "max_return_since_first_pct": 0.0,
+        "drawdown_from_peak_pct": 0.0,
+        "best_close": 453.8,
+        "best_date": "2026-06-18",
+        "worst_close": 453.8,
+        "worst_date": "2026-06-18",
+        "comment": "推荐后涨跌幅仍在验证区间，继续观察催化剂和量价结构。"
+      }
     },
     {
       "code": "002156",
@@ -480,7 +629,26 @@
         "盈利弹性不稳定"
       ],
       "as_of_date": "2026-06-18",
-      "rank": 8
+      "rank": 8,
+      "tracking": {
+        "status": "继续观察",
+        "first_recommend_date": "2026-06-18",
+        "first_recommend_price": 68.27,
+        "first_rank": 8,
+        "first_status_key": "wait",
+        "latest_date": "2026-06-18",
+        "latest_price": 68.27,
+        "tracking_days": 0,
+        "snapshot_count": 1,
+        "return_since_first_pct": 0.0,
+        "max_return_since_first_pct": 0.0,
+        "drawdown_from_peak_pct": 0.0,
+        "best_close": 68.27,
+        "best_date": "2026-06-18",
+        "worst_close": 68.27,
+        "worst_date": "2026-06-18",
+        "comment": "推荐后涨跌幅仍在验证区间，继续观察催化剂和量价结构。"
+      }
     },
     {
       "code": "002185",
@@ -517,7 +685,26 @@
         "周期反复"
       ],
       "as_of_date": "2026-06-18",
-      "rank": 9
+      "rank": 9,
+      "tracking": {
+        "status": "继续观察",
+        "first_recommend_date": "2026-06-18",
+        "first_recommend_price": 19.61,
+        "first_rank": 9,
+        "first_status_key": "wait",
+        "latest_date": "2026-06-18",
+        "latest_price": 19.61,
+        "tracking_days": 0,
+        "snapshot_count": 1,
+        "return_since_first_pct": 0.0,
+        "max_return_since_first_pct": 0.0,
+        "drawdown_from_peak_pct": 0.0,
+        "best_close": 19.61,
+        "best_date": "2026-06-18",
+        "worst_close": 19.61,
+        "worst_date": "2026-06-18",
+        "comment": "推荐后涨跌幅仍在验证区间，继续观察催化剂和量价结构。"
+      }
     },
     {
       "code": "600584",
@@ -553,7 +740,26 @@
         "盈利修复节奏"
       ],
       "as_of_date": "2026-06-18",
-      "rank": 10
+      "rank": 10,
+      "tracking": {
+        "status": "继续观察",
+        "first_recommend_date": "2026-06-18",
+        "first_recommend_price": 83.03,
+        "first_rank": 10,
+        "first_status_key": "wait",
+        "latest_date": "2026-06-18",
+        "latest_price": 83.03,
+        "tracking_days": 0,
+        "snapshot_count": 1,
+        "return_since_first_pct": 0.0,
+        "max_return_since_first_pct": 0.0,
+        "drawdown_from_peak_pct": 0.0,
+        "best_close": 83.03,
+        "best_date": "2026-06-18",
+        "worst_close": 83.03,
+        "worst_date": "2026-06-18",
+        "comment": "推荐后涨跌幅仍在验证区间，继续观察催化剂和量价结构。"
+      }
     }
   ]
 }
