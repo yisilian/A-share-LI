@@ -83,6 +83,7 @@ main {
 
 .summary-band > div,
 .notice,
+.review-panel,
 .model-panel,
 .stock-card {
   background: var(--panel);
@@ -247,20 +248,73 @@ dd {
   line-height: 1.55;
 }
 
+.review-panel,
 .model-panel {
   margin-top: 16px;
   padding: 16px;
 }
 
+.review-panel h2,
 .model-panel h2 {
   font-size: 18px;
   margin-bottom: 8px;
 }
 
+.review-panel p,
 .model-panel p,
 .source-status {
   color: #31445d;
   line-height: 1.6;
+}
+
+.section-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.section-badge {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: var(--brand-soft);
+  color: var(--brand);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.review-list {
+  display: grid;
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--line);
+}
+
+.review-row {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr 1fr 1fr;
+  gap: 10px;
+  align-items: center;
+  background: #fbfdff;
+  padding: 12px;
+}
+
+.review-row em,
+.review-row span,
+.empty-text {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  font-style: normal;
+}
+
+.review-row strong {
+  display: block;
+  margin-top: 3px;
 }
 
 .source-status {
@@ -298,6 +352,14 @@ dd {
   }
 
   .metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .section-head {
+    display: grid;
+  }
+
+  .review-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 

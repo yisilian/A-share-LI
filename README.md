@@ -45,6 +45,7 @@ python scripts/generate_pool.py
 数据会写入：
 
 - `data/latest.json`
+- `data/review.json`
 - `data/history/YYYY-MM-DD.json`
 
 ## GitHub Pages 部署

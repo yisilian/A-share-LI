@@ -51,6 +51,17 @@
 
       <section id="stockList" class="stock-list"></section>
 
+      <section class="review-panel">
+        <div class="section-head">
+          <div>
+            <h2>回访中心</h2>
+            <p>这里保留所有历史推荐。即使某只股票不在最新推荐池里，也会继续跟踪推荐后的表现。</p>
+          </div>
+          <span id="reviewCount" class="section-badge">-</span>
+        </div>
+        <div id="reviewList" class="review-list"></div>
+      </section>
+
       <section class="model-panel">
         <h2>模型思路</h2>
         <p id="modelDescription">长期趋势确认 → 产业链瓶颈 → 供需验证 → 低关注度/错定价 → 催化剂 → 估值重估。</p>
@@ -85,6 +96,27 @@
             <div><dt>主要催化</dt><dd class="catalysts"></dd></div>
             <div><dt>主要风险</dt><dd class="risks"></dd></div>
           </dl>
+        </div>
+      </article>
+    </template>
+
+    <template id="reviewRowTemplate">
+      <article class="review-row">
+        <div>
+          <strong class="review-name"></strong>
+          <em class="review-code"></em>
+        </div>
+        <div>
+          <span>累计收益</span>
+          <strong class="review-return"></strong>
+        </div>
+        <div>
+          <span>首次推荐</span>
+          <strong class="review-first"></strong>
+        </div>
+        <div>
+          <span>状态</span>
+          <strong class="review-status"></strong>
         </div>
       </article>
     </template>

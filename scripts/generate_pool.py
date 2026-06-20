@@ -14,6 +14,7 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = ROOT / "data"
 LATEST_PATH = DATA_DIR / "latest.json"
+REVIEW_PATH = DATA_DIR / "review.json"
 HISTORY_DIR = DATA_DIR / "history"
 CN_TZ = timezone(timedelta(hours=8))
 
@@ -240,6 +241,226 @@ def build_tracking_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def build_review_center(rows: list[dict[str, Any]], as_of_date: str) -> dict[str, Any]:
+    current_by_code = {row["code"]: row for row in rows}
+    entries_by_code: dict[str, dict[str, dict[str, Any]]] = {}
+
+    for snapshot in load_history_snapshots():
+        snapshot_date = snapshot.get("as_of_date")
+        if not snapshot_date:
+            continue
+        for stock in snapshot.get("stocks", []):
+            code = stock.get("code")
+            close = safe_float(stock.get("close"))
+            if not code or close is None:
+                continue
+            entries_by_code.setdefault(code, {})[str(snapshot_date)] = {
+                "date": str(snapshot_date),
+                "close": close,
+                "rank": stock.get("rank"),
+                "status_key": stock.get("status_key"),
+                "name": stock.get("name"),
+                "theme": stock.get("theme"),
+                "board": stock.get("board"),
+            }
+
+    for row in rows:
+        close = safe_float(row.get("close"))
+        if close is None:
+            continue
+        entries_by_code.setdefault(row["code"], {})[as_of_date] = {
+            "date": as_of_date,
+            "close": close,
+            "rank": row.get("rank"),
+            "status_key": row.get("status_key"),
+            "name": row.get("name"),
+            "theme": row.get("theme"),
+            "board": row.get("board"),
+        }
+
+    records: list[dict[str, Any]] = []
+    current_date = parse_date_value(as_of_date)
+
+    for code, entries in sorted(entries_by_code.items()):
+        current_row = current_by_code.get(code)
+        quote_error = None
+        latest_quote: dict[str, Any] | None = None
+
+        if current_row:
+            latest_quote = {
+                "date": as_of_date,
+                "close": safe_float(current_row.get("close")),
+                "rank": current_row.get("rank"),
+                "status_key": current_row.get("status_key"),
+                "name": current_row.get("name"),
+                "theme": current_row.get("theme"),
+                "board": current_row.get("board"),
+            }
+        else:
+            try:
+                df = load_daily(code)
+                latest_quote = {
+                    "date": df["date"].iloc[-1].strftime("%Y-%m-%d"),
+                    "close": float(df["close"].astype(float).iloc[-1]),
+                    "rank": None,
+                    "status_key": "exited",
+                    "name": next((item.get("name") for item in entries.values() if item.get("name")), code),
+                    "theme": next((item.get("theme") for item in entries.values() if item.get("theme")), ""),
+                    "board": board_for(code),
+                }
+            except Exception as exc:  # keep historical review available even if a quote source fails
+                quote_error = str(exc)
+
+        if latest_quote and latest_quote.get("close") is not None:
+            entries[str(latest_quote["date"])] = latest_quote
+
+        series = sorted(
+            entries.values(),
+            key=lambda item: parse_date_value(item["date"]) or datetime.min.date(),
+        )
+        if not series:
+            continue
+
+        first = series[0]
+        latest = series[-1]
+        last_seen = max(
+            [item for item in series if item.get("rank") is not None],
+            key=lambda item: parse_date_value(item["date"]) or datetime.min.date(),
+            default=latest,
+        )
+
+        first_close = safe_float(first.get("close"))
+        latest_close = safe_float(latest.get("close"))
+        max_entry = max(series, key=lambda item: safe_float(item.get("close")) or float("-inf"))
+        min_entry = min(series, key=lambda item: safe_float(item.get("close")) or float("inf"))
+        max_close = safe_float(max_entry.get("close"))
+        min_close = safe_float(min_entry.get("close"))
+
+        return_pct = None
+        max_return_pct = None
+        drawdown_from_peak_pct = None
+        if first_close and latest_close is not None:
+            return_pct = (latest_close / first_close - 1) * 100
+        if first_close and max_close is not None:
+            max_return_pct = (max_close / first_close - 1) * 100
+        if latest_close is not None and max_close:
+            drawdown_from_peak_pct = (latest_close / max_close - 1) * 100
+
+        first_date = parse_date_value(first.get("date"))
+        tracking_days = None
+        if first_date and current_date:
+            tracking_days = (current_date - first_date).days
+
+        active = code in current_by_code
+        if return_pct is None:
+            review_status = "待回访"
+            comment = "缺少最新价格，暂不评价推荐后表现。"
+        elif active and return_pct >= 5:
+            review_status = "当前池中-正反馈"
+            comment = "仍在最新推荐池中，且推荐后已有正收益。"
+        elif active and return_pct <= -5:
+            review_status = "当前池中-负反馈"
+            comment = "仍在最新推荐池中，但推荐后回撤较明显，需要复核逻辑和风控。"
+        elif active:
+            review_status = "当前池中-继续观察"
+            comment = "仍在最新推荐池中，表现暂处于验证区间。"
+        elif return_pct >= 0:
+            review_status = "已调出-正收益"
+            comment = "不在最新推荐池中，但历史推荐目前仍为正收益，继续保留回访记录。"
+        else:
+            review_status = "已调出-负收益"
+            comment = "不在最新推荐池中，历史推荐目前为负收益，后续用于模型复盘。"
+
+        if quote_error:
+            comment = f"{comment} 最新行情刷新失败，暂用历史快照：{quote_error}"
+
+        identity = current_row or latest or first
+        records.append(
+            {
+                "code": code,
+                "name": identity.get("name") or code,
+                "theme": identity.get("theme") or "",
+                "board": identity.get("board") or board_for(code),
+                "active_in_current_pool": active,
+                "current_rank": current_row.get("rank") if current_row else None,
+                "current_status_key": current_row.get("status_key") if current_row else None,
+                "first_recommend_date": first.get("date"),
+                "first_recommend_price": round_or_none(first_close),
+                "first_rank": first.get("rank"),
+                "last_seen_in_pool_date": last_seen.get("date"),
+                "last_seen_rank": last_seen.get("rank"),
+                "latest_date": latest.get("date"),
+                "latest_price": round_or_none(latest_close),
+                "tracking_days": tracking_days,
+                "snapshot_count": len(series),
+                "return_since_first_pct": round_or_none(return_pct),
+                "max_return_since_first_pct": round_or_none(max_return_pct),
+                "drawdown_from_peak_pct": round_or_none(drawdown_from_peak_pct),
+                "best_close": round_or_none(max_close),
+                "best_date": max_entry.get("date"),
+                "worst_close": round_or_none(min_close),
+                "worst_date": min_entry.get("date"),
+                "review_status": review_status,
+                "comment": comment,
+            }
+        )
+
+    tracked = [record for record in records if record.get("return_since_first_pct") is not None]
+
+    def record_return(record: dict[str, Any]) -> float:
+        return float(record["return_since_first_pct"])
+
+    if tracked:
+        returns = [record_return(record) for record in tracked]
+        best = max(tracked, key=record_return)
+        worst = min(tracked, key=record_return)
+        summary = {
+            "tracked_count": len(tracked),
+            "active_count": sum(1 for record in records if record["active_in_current_pool"]),
+            "exited_count": sum(1 for record in records if not record["active_in_current_pool"]),
+            "average_return_pct": round_or_none(sum(returns) / len(returns)),
+            "positive_count": sum(1 for value in returns if value > 0),
+            "negative_count": sum(1 for value in returns if value < 0),
+            "best": {
+                "code": best["code"],
+                "name": best["name"],
+                "return_since_first_pct": best["return_since_first_pct"],
+            },
+            "worst": {
+                "code": worst["code"],
+                "name": worst["name"],
+                "return_since_first_pct": worst["return_since_first_pct"],
+            },
+        }
+    else:
+        summary = {
+            "tracked_count": 0,
+            "active_count": sum(1 for record in records if record["active_in_current_pool"]),
+            "exited_count": sum(1 for record in records if not record["active_in_current_pool"]),
+            "average_return_pct": None,
+            "positive_count": 0,
+            "negative_count": 0,
+            "best": None,
+            "worst": None,
+        }
+
+    records.sort(
+        key=lambda record: (
+            not record["active_in_current_pool"],
+            -(record.get("return_since_first_pct") or 0),
+            record["code"],
+        )
+    )
+
+    return {
+        "schema_version": "1.0",
+        "generated_at": datetime.now(CN_TZ).isoformat(timespec="seconds"),
+        "as_of_date": as_of_date,
+        "summary": summary,
+        "records": records,
+    }
+
+
 def load_daily(code: str) -> pd.DataFrame:
     import akshare as ak
 
@@ -380,6 +601,7 @@ def build_payload() -> dict[str, Any]:
     as_of_date = max(row["as_of_date"] for row in rows)
     attach_tracking(rows, as_of_date)
     tracking_summary = build_tracking_summary(rows)
+    review_payload = build_review_center(rows, as_of_date)
     counts = {
         "total": len(rows),
         "watch": sum(1 for row in rows if row["status_key"] == "watch"),
@@ -411,6 +633,7 @@ def build_payload() -> dict[str, Any]:
             "candidates": [asdict(candidate) for candidate in CANDIDATES],
         },
         "summary": {**counts, "overall_signal": overall_signal, "tracking": tracking_summary},
+        "review": review_payload,
         "stocks": rows,
     }
 
@@ -420,6 +643,9 @@ def write_payload(payload: dict[str, Any]) -> None:
     HISTORY_DIR.mkdir(exist_ok=True)
     text = json.dumps(payload, ensure_ascii=False, indent=2)
     LATEST_PATH.write_text(text + "\n", encoding="utf-8")
+    review_payload = payload.get("review")
+    if isinstance(review_payload, dict):
+        REVIEW_PATH.write_text(json.dumps(review_payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     history_path = HISTORY_DIR / f"{payload['as_of_date']}.json"
     history_path.write_text(text + "\n", encoding="utf-8")
 

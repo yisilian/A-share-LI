@@ -1,5 +1,6 @@
 const state = {
   data: null,
+  review: null,
   filter: "all",
 };
 
@@ -35,6 +36,15 @@ async function loadPool() {
     const response = await fetch(`data/latest.json?t=${Date.now()}`, { cache: "no-store" });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     state.data = await response.json();
+    state.review = state.data.review || null;
+    try {
+      const reviewResponse = await fetch(`data/review.json?t=${Date.now()}`, { cache: "no-store" });
+      if (reviewResponse.ok) {
+        state.review = await reviewResponse.json();
+      }
+    } catch (_) {
+      state.review = state.data.review || null;
+    }
     render();
   } catch (error) {
     byId("stockList").innerHTML = `<article class="stock-card"><div class="detail"><p class="logic">数据加载失败：${error.message}</p></div></article>`;
@@ -48,8 +58,9 @@ function render() {
   byId("asOfDate").textContent = data.as_of_date || "-";
   byId("poolCount").textContent = String(data.stocks?.length || 0);
   byId("overallSignal").textContent = data.summary?.overall_signal || "-";
-  byId("averageReturn").textContent = formatPercent(data.summary?.tracking?.average_return_pct);
-  byId("averageReturn").className = returnClass(data.summary?.tracking?.average_return_pct);
+  const averageReturn = state.review?.summary?.average_return_pct ?? data.summary?.tracking?.average_return_pct;
+  byId("averageReturn").textContent = formatPercent(averageReturn);
+  byId("averageReturn").className = returnClass(averageReturn);
   byId("modelDescription").textContent = data.model?.description || byId("modelDescription").textContent;
   byId("sourceStatus").textContent = `更新时间：${data.generated_at || "-"}；数据源：${data.source_status?.quotes || "-"}；${data.source_status?.note || ""}`;
 
@@ -68,6 +79,8 @@ function render() {
   if (!stocks.length) {
     list.innerHTML = '<article class="stock-card"><div class="detail"><p class="logic">当前筛选下没有股票。</p></div></article>';
   }
+
+  renderReviewCenter();
 }
 
 function createStockCard(stock) {
@@ -104,6 +117,39 @@ function createStockCard(stock) {
   node.querySelector(".card-head").addEventListener("click", () => {
     detail.hidden = !detail.hidden;
   });
+
+  return node;
+}
+
+function renderReviewCenter() {
+  const review = state.review;
+  const list = byId("reviewList");
+  const records = review?.records || [];
+  byId("reviewCount").textContent = `${records.length} 条`;
+  list.innerHTML = "";
+
+  if (!records.length) {
+    list.innerHTML = '<p class="empty-text">暂无历史推荐回访数据。</p>';
+    return;
+  }
+
+  records.forEach((record) => {
+    list.appendChild(createReviewRow(record));
+  });
+}
+
+function createReviewRow(record) {
+  const template = byId("reviewRowTemplate");
+  const node = template.content.firstElementChild.cloneNode(true);
+  const reviewReturn = record.return_since_first_pct;
+
+  node.querySelector(".review-name").textContent = record.name || record.code;
+  node.querySelector(".review-code").textContent = `${record.code} · ${record.active_in_current_pool ? "当前池中" : "已调出"}`;
+  node.querySelector(".review-return").textContent = formatPercent(reviewReturn);
+  node.querySelector(".review-return").classList.add(returnClass(reviewReturn));
+  node.querySelector(".review-first").textContent = `${record.first_recommend_date || "-"} / ${formatNumber(record.first_recommend_price)}`;
+  node.querySelector(".review-status").textContent = record.review_status || "-";
+  node.title = record.comment || "";
 
   return node;
 }
