@@ -51,11 +51,14 @@ python scripts/generate_pool.py
 
 1. 打开 `Settings`
 2. 进入 `Pages`
-3. Source 选择 `GitHub Actions`
-4. 回到 `Actions`，手动运行 `Update A-share pool`
-5. 再运行或等待 `Deploy static app`
+3. Source 选择 `Deploy from a branch`
+4. Branch 选择 `main`
+5. Folder 选择 `/(root)`
+6. 点击 `Save`
 
 部署完成后，手机打开 Pages 给出的地址即可。
+
+数据更新工作流仍在 `Actions` 里，每个交易日收盘后自动刷新 `data/latest.json`。
 
 ## 重要提示
 
