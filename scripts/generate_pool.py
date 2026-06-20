@@ -15,8 +15,13 @@ ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = ROOT / "data"
 LATEST_PATH = DATA_DIR / "latest.json"
 REVIEW_PATH = DATA_DIR / "review.json"
+UNIVERSE_PATH = DATA_DIR / "universe_scan.json"
 HISTORY_DIR = DATA_DIR / "history"
 CN_TZ = timezone(timedelta(hours=8))
+FINAL_POOL_SIZE = 10
+DEEP_ANALYSIS_LIMIT = 28
+UNIVERSE_EXPORT_LIMIT = 120
+MAINBOARD_PREFIXES = ("000", "001", "002", "003", "600", "601", "603", "605")
 
 
 @dataclass(frozen=True)
@@ -44,6 +49,61 @@ CANDIDATES = [
 ]
 
 
+BROAD_CANDIDATES = [
+    Candidate("002050", "三花智控", "机器人/热管理", "机器人执行器与新能源热管理属于高端制造关键部件，关注客户验证、产能和订单兑现。", 5.6, ["机器人执行器", "新能源热管理", "海外客户订单"], ["估值消化", "客户集中", "海外需求波动"]),
+    Candidate("002747", "埃斯顿", "工业机器人", "国产工业机器人本体和自动化系统受益于制造业升级，关注订单质量和盈利改善。", 5.1, ["机器人国产替代", "制造业自动化", "订单修复"], ["盈利波动", "竞争加剧", "需求恢复慢"]),
+    Candidate("002472", "双环传动", "机器人/精密传动", "精密传动是机器人和汽车智能化的重要零部件，关注高端客户导入和产能利用率。", 5.2, ["机器人减速器", "汽车齿轮", "客户导入"], ["价格竞争", "订单节奏", "估值波动"]),
+    Candidate("603728", "鸣志电器", "机器人/控制电机", "控制电机和运动控制系统处于机器人执行链条，关注人形机器人与工业自动化需求验证。", 5.0, ["运动控制", "机器人执行器", "海外订单"], ["题材波动", "验证周期长", "竞争加剧"]),
+    Candidate("600406", "国电南瑞", "电网自动化/电力IT", "新型电力系统建设推动调度、继保和电网自动化投资，属于订单可跟踪的基础设施环节。", 5.8, ["电网投资", "新型电力系统", "特高压配套"], ["投资节奏", "估值消化", "订单确认周期"]),
+    Candidate("002028", "思源电气", "输变电设备", "电网投资和海外输变电需求带动一次/二次设备，关注订单、交付和毛利率。", 5.5, ["电网建设", "海外输变电", "订单兑现"], ["原材料波动", "海外交付", "估值消化"]),
+    Candidate("601179", "中国西电", "特高压/电力设备", "特高压与主网建设推动高压开关和变压器需求，关注招标节奏和产能释放。", 5.2, ["特高压招标", "主网投资", "设备更新"], ["招标波动", "订单兑现慢", "短线情绪波动"]),
+    Candidate("600312", "平高电气", "特高压开关", "高压开关设备是特高压建设关键环节，关注订单兑现和盈利弹性。", 5.2, ["特高压建设", "电网设备", "国企改革"], ["订单周期", "毛利率波动", "主题拥挤"]),
+    Candidate("603606", "东方电缆", "海缆/海风", "海上风电海缆技术壁垒较高，关注海风项目核准、招标和交付节奏。", 5.0, ["海风招标", "海缆交付", "海外订单"], ["海风装机延迟", "价格竞争", "项目审批"]),
+    Candidate("600089", "特变电工", "变压器/硅料/电力设备", "变压器出海和电网投资提供支撑，同时需跟踪硅料周期拖累。", 5.0, ["变压器出海", "电网投资", "能源建设"], ["硅料周期", "多业务估值折价", "原材料波动"]),
+    Candidate("600875", "东方电气", "能源装备/燃机", "能源安全和设备更新推动发电装备需求，关注燃机、核电、风电订单。", 5.0, ["能源装备", "设备更新", "核电燃机订单"], ["订单确认慢", "毛利率波动", "周期属性"]),
+    Candidate("601727", "上海电气", "能源装备/工业设备", "能源装备和工业设备更新带来订单修复弹性，关注资产质量和盈利改善。", 4.8, ["设备更新", "能源装备", "国企改革"], ["资产减值", "盈利修复慢", "业务复杂"]),
+    Candidate("601899", "紫金矿业", "铜/黄金资源", "铜金资源兼具全球供给约束和通胀/利率敏感属性，关注金属价格和产量释放。", 5.7, ["铜价", "金价", "矿山产量"], ["商品价格波动", "海外运营", "汇率风险"]),
+    Candidate("600547", "山东黄金", "黄金", "黄金价格受实际利率、避险和央行购金影响，关注金价趋势和矿山成本。", 5.2, ["金价上行", "避险需求", "矿山增产"], ["金价回调", "成本上升", "并购整合"]),
+    Candidate("600489", "中金黄金", "黄金/央企资源", "央企黄金平台受益于金价和资源整合预期，关注产量、成本和金价。", 5.0, ["金价", "资源整合", "央企改革"], ["金价波动", "成本压力", "主题兑现慢"]),
+    Candidate("601600", "中国铝业", "铝/资源", "铝价和氧化铝供需影响盈利，关注供给约束、电力成本和需求修复。", 4.9, ["铝价", "供给约束", "资源品景气"], ["商品周期", "电力成本", "需求波动"]),
+    Candidate("000630", "铜陵有色", "铜/有色金属", "铜资源和冶炼加工受益于铜价和新能源需求，关注库存、TC和价格趋势。", 4.9, ["铜价", "新能源需求", "库存变化"], ["铜价回调", "加工费波动", "周期属性"]),
+    Candidate("000960", "锡业股份", "锡/小金属", "锡受半导体焊料与供给约束影响，关注库存、价格和矿端扰动。", 4.9, ["锡价", "供给扰动", "半导体需求"], ["价格波动", "需求反复", "资源政策"]),
+    Candidate("600111", "北方稀土", "稀土磁材上游", "稀土供给配额和新能源/机器人需求影响价格，关注价格拐点和库存。", 4.8, ["稀土价格", "机器人磁材", "新能源车"], ["价格下行", "政策扰动", "需求不及预期"]),
+    Candidate("000831", "中国稀土", "稀土资源", "稀土资源整合与价格周期是主要变量，关注供给政策和下游磁材需求。", 4.8, ["资源整合", "稀土价格", "政策催化"], ["价格波动", "主题交易", "盈利弹性不稳定"]),
+    Candidate("600276", "恒瑞医药", "创新药", "创新药出海和管线兑现是长期重估核心，关注临床进展、授权交易和销售恢复。", 5.3, ["创新药出海", "管线进展", "医保压力缓和"], ["研发失败", "集采降价", "估值消化"]),
+    Candidate("000538", "云南白药", "中药/消费医疗", "品牌中药和消费医疗具备现金流属性，关注改革、渠道和利润率改善。", 4.8, ["国企改革", "消费医疗", "分红回报"], ["增长偏慢", "渠道压力", "估值弹性有限"]),
+    Candidate("600085", "同仁堂", "中药品牌", "老字号中药品牌具备稀缺性，关注渠道扩张、提价和国企改革。", 4.8, ["中药消费", "品牌提价", "国企改革"], ["消费疲弱", "估值消化", "改革慢"]),
+    Candidate("600519", "贵州茅台", "高端白酒", "高端白酒是消费龙头定价权代表，关注批价、渠道库存和分红回报。", 4.9, ["分红回报", "批价企稳", "消费修复"], ["消费疲弱", "批价下行", "估值弹性下降"]),
+    Candidate("000858", "五粮液", "高端白酒", "高端白酒需求修复和渠道库存是核心变量，关注批价、动销和费用投放。", 4.7, ["消费修复", "渠道去库", "分红回报"], ["批价波动", "库存压力", "消费疲弱"]),
+    Candidate("000333", "美的集团", "家电/机器人", "家电龙头现金流稳定，同时具备机器人与工业技术延展，关注出口和利润率。", 5.1, ["家电出口", "机器人业务", "分红回购"], ["地产拖累", "汇率波动", "增长放缓"]),
+    Candidate("000651", "格力电器", "家电/分红", "空调龙头具备高分红属性，关注渠道改革、出口和估值修复。", 4.7, ["分红回报", "估值修复", "出口需求"], ["地产链压力", "竞争加剧", "增长放缓"]),
+    Candidate("600887", "伊利股份", "乳制品消费", "乳制品龙头受消费复苏和成本变化影响，关注需求、费用率和分红。", 4.6, ["消费修复", "成本改善", "分红回报"], ["需求疲弱", "价格竞争", "增长放缓"]),
+    Candidate("600036", "招商银行", "银行/财富管理", "优质银行资产质量和财富管理修复影响估值，关注息差、不良和分红。", 4.8, ["分红回报", "资产质量企稳", "财富管理修复"], ["息差下行", "地产风险", "经济修复慢"]),
+    Candidate("601318", "中国平安", "保险/金融", "保险负债端和投资端修复决定估值弹性，关注新业务价值和资本市场表现。", 4.8, ["保险复苏", "权益市场修复", "分红回报"], ["投资收益波动", "地产敞口", "负债端压力"]),
+    Candidate("600030", "中信证券", "券商/资本市场", "券商受资本市场活跃度和政策影响，关注成交额、投行业务和估值修复。", 4.7, ["资本市场改革", "成交活跃", "并购重组"], ["市场低迷", "投行业务波动", "政策节奏"]),
+    Candidate("600150", "中国船舶", "船舶制造", "船舶景气周期由新船订单、船价和交付节奏驱动，关注盈利兑现。", 5.3, ["船价高位", "订单交付", "央企整合"], ["周期回落", "成本波动", "交付延迟"]),
+    Candidate("600760", "中航沈飞", "军机/航空装备", "航空装备龙头受订单节奏和军工景气影响，关注交付、合同和盈利质量。", 5.0, ["军工订单", "航空装备", "国企改革"], ["订单节奏", "估值消化", "回款周期"]),
+    Candidate("000768", "中航西飞", "军机/大飞机", "军机和大飞机产业链核心平台，关注订单、交付和产能效率。", 4.9, ["大飞机", "航空装备", "军工订单"], ["盈利释放慢", "订单节奏", "估值波动"]),
+    Candidate("600893", "航发动力", "航空发动机", "航空发动机具备高壁垒属性，关注维修、交付和国产替代进度。", 4.8, ["航空发动机", "国产替代", "维修需求"], ["研发周期", "盈利波动", "订单不透明"]),
+    Candidate("002594", "比亚迪", "新能源车/电池", "新能源车龙头兼具整车、电池和出海逻辑，关注销量、价格和利润率。", 5.4, ["出海销量", "电池技术", "智能化"], ["价格战", "利润率压力", "海外政策"]),
+    Candidate("601127", "赛力斯", "智能汽车", "智能汽车销量和高端车型放量是核心变量，关注交付、毛利率和合作生态。", 5.1, ["智能汽车销量", "高端车型", "生态合作"], ["销量波动", "估值高", "竞争加剧"]),
+    Candidate("000625", "长安汽车", "自主汽车/智能化", "自主品牌和智能化转型提供弹性，关注新能源销量和合资改善。", 4.8, ["新能源转型", "智能化车型", "国企改革"], ["价格战", "销量不及预期", "利润率压力"]),
+    Candidate("601689", "拓普集团", "汽车零部件/机器人", "汽车轻量化和机器人执行器预期共同影响估值，关注客户拓展和订单兑现。", 5.0, ["汽车零部件", "机器人执行器", "客户拓展"], ["客户集中", "价格压力", "题材波动"]),
+    Candidate("002920", "德赛西威", "智能座舱/智驾", "智能座舱与智能驾驶渗透率提升，关注订单、域控制器和客户结构。", 5.0, ["智能座舱", "智能驾驶", "客户升级"], ["汽车价格战", "研发投入", "客户集中"]),
+]
+
+
+def all_candidates() -> list[Candidate]:
+    seen: set[str] = set()
+    merged: list[Candidate] = []
+    for candidate in [*CANDIDATES, *BROAD_CANDIDATES]:
+        if candidate.code in seen:
+            continue
+        seen.add(candidate.code)
+        merged.append(candidate)
+    return merged
+
+
 def board_for(code: str) -> str:
     return "沪市主板" if code.startswith("6") else "深市主板"
 
@@ -66,6 +126,186 @@ def round_or_none(value: Any, digits: int = 2) -> float | None:
     if value is None:
         return None
     return round(value, digits)
+
+
+def normalize_code(value: Any) -> str:
+    text = str(value or "").strip()
+    digits = "".join(ch for ch in text if ch.isdigit())
+    return digits[-6:] if len(digits) >= 6 else digits
+
+
+def is_mainboard_code(code: str) -> bool:
+    return code.startswith(MAINBOARD_PREFIXES)
+
+
+def percentile_rank(series: pd.Series) -> pd.Series:
+    return series.rank(method="average", pct=True).fillna(0.0)
+
+
+def build_universe_scan(candidate_library: list[Candidate]) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
+    import akshare as ak
+
+    df = ak.stock_zh_a_spot()
+    if df.empty:
+        raise RuntimeError("stock_zh_a_spot returned empty data")
+
+    normalized = df.copy()
+    normalized["code"] = normalized["代码"].map(normalize_code)
+    normalized["name"] = normalized["名称"].astype(str)
+    normalized["close"] = pd.to_numeric(normalized["最新价"], errors="coerce")
+    normalized["pct_chg"] = pd.to_numeric(normalized["涨跌幅"], errors="coerce")
+    normalized["amount"] = pd.to_numeric(normalized["成交额"], errors="coerce")
+    normalized["high"] = pd.to_numeric(normalized["最高"], errors="coerce")
+    normalized["low"] = pd.to_numeric(normalized["最低"], errors="coerce")
+
+    mainboard = normalized[
+        normalized["code"].map(is_mainboard_code)
+        & normalized["close"].gt(2)
+        & normalized["amount"].gt(30_000_000)
+        & ~normalized["name"].str.contains("ST|退", regex=True, na=False)
+    ].copy()
+
+    if mainboard.empty:
+        raise RuntimeError("no main-board rows after filtering")
+
+    price_range = (mainboard["high"] - mainboard["low"]).replace(0, np.nan)
+    intraday_position = ((mainboard["close"] - mainboard["low"]) / price_range).clip(0, 1).fillna(0.5)
+    momentum_rank = percentile_rank(mainboard["pct_chg"])
+    liquidity_rank = percentile_rank(mainboard["amount"])
+    position_rank = percentile_rank(intraday_position)
+    heat_penalty = (mainboard["pct_chg"] - 7.5).clip(lower=0).fillna(0) * 4
+    weak_penalty = (-mainboard["pct_chg"]).clip(lower=0).fillna(0) * 1.2
+
+    mainboard["layer_one_score"] = (
+        momentum_rank * 48
+        + liquidity_rank * 34
+        + position_rank * 18
+        - heat_penalty
+        - weak_penalty
+    ).round(2)
+    mainboard = mainboard.sort_values(["layer_one_score", "amount"], ascending=[False, False]).reset_index(drop=True)
+    mainboard["layer_one_rank"] = mainboard.index + 1
+
+    universe_by_code: dict[str, dict[str, Any]] = {}
+    for row in mainboard.itertuples(index=False):
+        universe_by_code[row.code] = {
+            "code": row.code,
+            "name": row.name,
+            "close": round_or_none(row.close),
+            "pct_chg": round_or_none(row.pct_chg),
+            "amount": round_or_none(row.amount, 0),
+            "layer_one_score": round_or_none(row.layer_one_score),
+            "layer_one_rank": int(row.layer_one_rank),
+        }
+
+    library_codes = {candidate.code for candidate in candidate_library}
+    matched = [record for code, record in universe_by_code.items() if code in library_codes]
+    top_mainboard = [
+        {
+            "rank": int(row.layer_one_rank),
+            "code": row.code,
+            "name": row.name,
+            "close": round_or_none(row.close),
+            "pct_chg": round_or_none(row.pct_chg),
+            "amount": round_or_none(row.amount, 0),
+            "layer_one_score": round_or_none(row.layer_one_score),
+        }
+        for row in mainboard.head(UNIVERSE_EXPORT_LIMIT).itertuples(index=False)
+    ]
+
+    payload = {
+        "schema_version": "1.0",
+        "generated_at": datetime.now(CN_TZ).isoformat(timespec="seconds"),
+        "source": "akshare.stock_zh_a_spot / Sina",
+        "scope": "全A股主板",
+        "raw_count": int(len(normalized)),
+        "mainboard_count": int(len(mainboard)),
+        "strategic_library_count": len(library_codes),
+        "matched_library_count": len(matched),
+        "shortlist_limit": DEEP_ANALYSIS_LIMIT,
+        "export_limit": UNIVERSE_EXPORT_LIMIT,
+        "note": "第一层扫描全主板行情快照，第二层只对可解释战略主题库中的入围标的做深度打分。",
+        "top_mainboard": top_mainboard,
+        "matched_library": sorted(matched, key=lambda item: item["layer_one_rank"])[:UNIVERSE_EXPORT_LIMIT],
+    }
+    return universe_by_code, payload
+
+
+def select_candidates_from_universe(candidate_library: list[Candidate]) -> tuple[list[Candidate], dict[str, dict[str, Any]], dict[str, Any], list[str]]:
+    warnings: list[str] = []
+    try:
+        universe_by_code, universe_payload = build_universe_scan(candidate_library)
+    except Exception as exc:
+        warnings.append(f"全主板第一层扫描失败，回退到战略主题库：{exc}")
+        fallback_meta = {
+            candidate.code: {
+                "candidate_source": "主题库兜底",
+                "layer_one_score": None,
+                "layer_one_rank": None,
+                "layer_one_pct_chg": None,
+                "layer_one_amount": None,
+                "layer_one_bonus": 0.0,
+            }
+            for candidate in candidate_library[:DEEP_ANALYSIS_LIMIT]
+        }
+        universe_payload = {
+            "schema_version": "1.0",
+            "generated_at": datetime.now(CN_TZ).isoformat(timespec="seconds"),
+            "source": "fallback",
+            "scope": "战略主题库",
+            "raw_count": 0,
+            "mainboard_count": 0,
+            "strategic_library_count": len(candidate_library),
+            "matched_library_count": len(fallback_meta),
+            "shortlist_limit": DEEP_ANALYSIS_LIMIT,
+            "export_limit": UNIVERSE_EXPORT_LIMIT,
+            "note": warnings[-1],
+            "top_mainboard": [],
+            "matched_library": [],
+        }
+        return candidate_library[:DEEP_ANALYSIS_LIMIT], fallback_meta, universe_payload, warnings
+
+    scored: list[tuple[float, Candidate]] = []
+    meta_by_code: dict[str, dict[str, Any]] = {}
+    for candidate in candidate_library:
+        scan = universe_by_code.get(candidate.code)
+        if not scan:
+            continue
+        first_layer_score = safe_float(scan.get("layer_one_score")) or 0.0
+        combined_score = first_layer_score + candidate.base_score * 7
+        meta_by_code[candidate.code] = {
+            "candidate_source": "全主板第一层入围",
+            "layer_one_score": round_or_none(first_layer_score),
+            "layer_one_rank": scan.get("layer_one_rank"),
+            "layer_one_pct_chg": scan.get("pct_chg"),
+            "layer_one_amount": scan.get("amount"),
+            "layer_one_bonus": round_or_none(min(2.2, first_layer_score / 100 * 2.2)),
+        }
+        scored.append((combined_score, candidate))
+
+    if len(scored) < min(FINAL_POOL_SIZE, 6):
+        warnings.append("全主板扫描匹配到的战略候选不足，已用主题库兜底补齐。")
+        existing = {candidate.code for _, candidate in scored}
+        for candidate in candidate_library:
+            if candidate.code in existing:
+                continue
+            meta_by_code[candidate.code] = {
+                "candidate_source": "主题库补齐",
+                "layer_one_score": None,
+                "layer_one_rank": None,
+                "layer_one_pct_chg": None,
+                "layer_one_amount": None,
+                "layer_one_bonus": 0.0,
+            }
+            scored.append((candidate.base_score * 7, candidate))
+            if len(scored) >= DEEP_ANALYSIS_LIMIT:
+                break
+
+    scored.sort(key=lambda item: item[0], reverse=True)
+    selected = [candidate for _, candidate in scored[:DEEP_ANALYSIS_LIMIT]]
+    universe_payload["deep_analysis_count"] = len(selected)
+    universe_payload["final_pool_size"] = FINAL_POOL_SIZE
+    return selected, meta_by_code, universe_payload, warnings
 
 
 def parse_date_value(value: Any):
@@ -587,9 +827,22 @@ def fallback_latest(error: Exception) -> dict[str, Any]:
 def build_payload() -> dict[str, Any]:
     rows = []
     errors = []
-    for candidate in CANDIDATES:
+    candidate_library = all_candidates()
+    selected_candidates, candidate_meta, universe_payload, universe_warnings = select_candidates_from_universe(candidate_library)
+    errors.extend(universe_warnings)
+
+    for candidate in selected_candidates:
         try:
-            rows.append(analyze_candidate(candidate))
+            row = analyze_candidate(candidate)
+            meta = candidate_meta.get(candidate.code, {})
+            layer_one_bonus = safe_float(meta.get("layer_one_bonus")) or 0.0
+            row["score"] = round(row["score"] + layer_one_bonus, 1)
+            row["candidate_source"] = meta.get("candidate_source") or "主题库"
+            row["layer_one_score"] = meta.get("layer_one_score")
+            row["layer_one_rank"] = meta.get("layer_one_rank")
+            row["layer_one_pct_chg"] = meta.get("layer_one_pct_chg")
+            row["layer_one_amount"] = meta.get("layer_one_amount")
+            rows.append(row)
         except Exception as exc:  # network/free data sources are not always stable
             errors.append(f"{candidate.code} {candidate.name}: {exc}")
 
@@ -597,6 +850,7 @@ def build_payload() -> dict[str, Any]:
         raise RuntimeError("; ".join(errors) or "no rows generated")
 
     rows.sort(key=lambda row: row["score"], reverse=True)
+    rows = rows[:FINAL_POOL_SIZE]
     for index, row in enumerate(rows, start=1):
         row["rank"] = index
 
@@ -623,17 +877,20 @@ def build_payload() -> dict[str, Any]:
         "as_of_date": as_of_date,
         "market": "A股主板",
         "source_status": {
-            "quotes": "akshare.stock_zh_a_daily / Sina",
+            "quotes": "akshare.stock_zh_a_spot + stock_zh_a_daily / Sina",
             "fallback": False,
             "note": "免费数据源可能延迟或限流；关键决策请复核实时行情。",
             "warnings": errors,
         },
         "model": {
-            "name": "Serenity-style main-board screen",
-            "description": "长期趋势确认 → 产业链瓶颈 → 供需验证 → 低关注度/错定价 → 催化剂 → 估值重估。",
+            "name": "Two-layer Serenity main-board screen",
+            "description": "第一层扫描全A股主板的趋势、动量和流动性；第二层再做产业链瓶颈、供需验证、催化剂和估值重估筛选。",
             "board_filter": "000/001/002/003/600/601/603/605",
-            "candidates": [asdict(candidate) for candidate in CANDIDATES],
+            "universe_layer": "全主板行情快照粗筛",
+            "serenity_layer": "战略主题库 + 产业链瓶颈深度打分",
+            "candidates": [asdict(candidate) for candidate in candidate_library],
         },
+        "universe_scan": universe_payload,
         "summary": {**counts, "overall_signal": overall_signal, "tracking": tracking_summary},
         "review": review_payload,
         "stocks": rows,
@@ -648,6 +905,9 @@ def write_payload(payload: dict[str, Any]) -> None:
     review_payload = payload.get("review")
     if isinstance(review_payload, dict):
         REVIEW_PATH.write_text(json.dumps(review_payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    universe_payload = payload.get("universe_scan")
+    if isinstance(universe_payload, dict):
+        UNIVERSE_PATH.write_text(json.dumps(universe_payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     history_path = HISTORY_DIR / f"{payload['as_of_date']}.json"
     history_path.write_text(text + "\n", encoding="utf-8")
 

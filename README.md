@@ -46,6 +46,7 @@ python scripts/generate_pool.py
 
 - `data/latest.json`
 - `data/review.json`
+- `data/universe_scan.json`
 - `data/history/YYYY-MM-DD.json`
 
 ## GitHub Pages 部署

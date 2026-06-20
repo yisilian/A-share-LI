@@ -57,6 +57,9 @@ function render() {
 
   byId("asOfDate").textContent = data.as_of_date || "-";
   byId("poolCount").textContent = String(data.stocks?.length || 0);
+  byId("universeScope").textContent = data.universe_scan?.mainboard_count
+    ? `${data.universe_scan.mainboard_count}只→${data.universe_scan.deep_analysis_count || 0}只`
+    : "-";
   byId("overallSignal").textContent = data.summary?.overall_signal || "-";
   const averageReturn = state.review?.summary?.average_return_pct ?? data.summary?.tracking?.average_return_pct;
   byId("averageReturn").textContent = formatPercent(averageReturn);
@@ -102,6 +105,9 @@ function createStockCard(stock) {
   node.querySelector(".score").textContent = formatNumber(stock.score, 1);
   node.querySelector(".logic").textContent = stock.logic || "";
   node.querySelector(".theme").textContent = stock.theme || "-";
+  node.querySelector(".layer-one").textContent = stock.layer_one_rank
+    ? `全主板第 ${stock.layer_one_rank} 名，初筛分 ${formatNumber(stock.layer_one_score)}，当日涨跌 ${formatPercent(stock.layer_one_pct_chg)}，来源：${stock.candidate_source || "-"}`
+    : `未进入全主板快照初筛，来源：${stock.candidate_source || "-"}`;
   node.querySelector(".first-recommend").textContent = tracking.first_recommend_date
     ? `${tracking.first_recommend_date}，首次价 ${formatNumber(tracking.first_recommend_price)}，已回访 ${tracking.tracking_days ?? 0} 天`
     : "等待下一次自动刷新后开始记录";

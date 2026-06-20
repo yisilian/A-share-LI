@@ -1,0 +1,1549 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-20T14:09:10+08:00",
+  "source": "akshare.stock_zh_a_spot / Sina",
+  "scope": "全A股主板",
+  "raw_count": 5527,
+  "mainboard_count": 2741,
+  "strategic_library_count": 50,
+  "matched_library_count": 50,
+  "shortlist_limit": 28,
+  "export_limit": 120,
+  "note": "第一层扫描全主板行情快照，第二层只对可解释战略主题库中的入围标的做深度打分。",
+  "top_mainboard": [
+    {
+      "rank": 1,
+      "code": "603629",
+      "name": "利通电子",
+      "close": 176.58,
+      "pct_chg": 7.0,
+      "amount": 5728609338.0,
+      "layer_one_score": 96.34
+    },
+    {
+      "rank": 2,
+      "code": "601138",
+      "name": "工业富联",
+      "close": 78.08,
+      "pct_chg": 7.49,
+      "amount": 33063388881.0,
+      "layer_one_score": 96.31
+    },
+    {
+      "rank": 3,
+      "code": "002384",
+      "name": "东山精密",
+      "close": 273.0,
+      "pct_chg": 6.26,
+      "amount": 21311192154.0,
+      "layer_one_score": 96.01
+    },
+    {
+      "rank": 4,
+      "code": "002138",
+      "name": "顺络电子",
+      "close": 71.16,
+      "pct_chg": 6.97,
+      "amount": 3630044395.0,
+      "layer_one_score": 95.75
+    },
+    {
+      "rank": 5,
+      "code": "603986",
+      "name": "兆易创新",
+      "close": 629.0,
+      "pct_chg": 7.33,
+      "amount": 37016387910.0,
+      "layer_one_score": 95.74
+    },
+    {
+      "rank": 6,
+      "code": "002378",
+      "name": "章源钨业",
+      "close": 37.11,
+      "pct_chg": 6.39,
+      "amount": 5025292130.0,
+      "layer_one_score": 95.62
+    },
+    {
+      "rank": 7,
+      "code": "600549",
+      "name": "厦门钨业",
+      "close": 85.91,
+      "pct_chg": 6.27,
+      "amount": 12702389898.0,
+      "layer_one_score": 95.51
+    },
+    {
+      "rank": 8,
+      "code": "600206",
+      "name": "有研新材",
+      "close": 42.51,
+      "pct_chg": 6.84,
+      "amount": 5497319332.0,
+      "layer_one_score": 95.48
+    },
+    {
+      "rank": 9,
+      "code": "603083",
+      "name": "剑桥科技",
+      "close": 214.54,
+      "pct_chg": 5.53,
+      "amount": 5895675402.0,
+      "layer_one_score": 95.4
+    },
+    {
+      "rank": 10,
+      "code": "002741",
+      "name": "光华科技",
+      "close": 41.3,
+      "pct_chg": 4.72,
+      "amount": 4547987986.0,
+      "layer_one_score": 95.23
+    },
+    {
+      "rank": 11,
+      "code": "603186",
+      "name": "华正新材",
+      "close": 238.11,
+      "pct_chg": 5.05,
+      "amount": 4070407612.0,
+      "layer_one_score": 95.17
+    },
+    {
+      "rank": 12,
+      "code": "002600",
+      "name": "领益智造",
+      "close": 16.82,
+      "pct_chg": 6.12,
+      "amount": 6104035362.0,
+      "layer_one_score": 94.48
+    },
+    {
+      "rank": 13,
+      "code": "002475",
+      "name": "立讯精密",
+      "close": 69.93,
+      "pct_chg": 3.88,
+      "amount": 15855359540.0,
+      "layer_one_score": 94.1
+    },
+    {
+      "rank": 14,
+      "code": "600888",
+      "name": "新疆众和",
+      "close": 13.14,
+      "pct_chg": 6.83,
+      "amount": 1876903608.0,
+      "layer_one_score": 94.09
+    },
+    {
+      "rank": 15,
+      "code": "605589",
+      "name": "圣泉集团",
+      "close": 69.82,
+      "pct_chg": 5.15,
+      "amount": 5421216688.0,
+      "layer_one_score": 93.99
+    },
+    {
+      "rank": 16,
+      "code": "002645",
+      "name": "华宏科技",
+      "close": 36.1,
+      "pct_chg": 5.49,
+      "amount": 2601053126.0,
+      "layer_one_score": 93.97
+    },
+    {
+      "rank": 17,
+      "code": "002179",
+      "name": "中航光电",
+      "close": 40.78,
+      "pct_chg": 5.05,
+      "amount": 3092710142.0,
+      "layer_one_score": 93.96
+    },
+    {
+      "rank": 18,
+      "code": "001267",
+      "name": "汇绿生态",
+      "close": 58.1,
+      "pct_chg": 5.71,
+      "amount": 3082682641.0,
+      "layer_one_score": 93.9
+    },
+    {
+      "rank": 19,
+      "code": "600345",
+      "name": "长江通信",
+      "close": 64.78,
+      "pct_chg": 7.02,
+      "amount": 1520145094.0,
+      "layer_one_score": 93.81
+    },
+    {
+      "rank": 20,
+      "code": "603259",
+      "name": "药明康德",
+      "close": 102.72,
+      "pct_chg": 4.6,
+      "amount": 5799270625.0,
+      "layer_one_score": 93.68
+    },
+    {
+      "rank": 21,
+      "code": "603936",
+      "name": "博敏电子",
+      "close": 28.65,
+      "pct_chg": 7.06,
+      "amount": 2176243320.0,
+      "layer_one_score": 93.66
+    },
+    {
+      "rank": 22,
+      "code": "600961",
+      "name": "株冶集团",
+      "close": 28.82,
+      "pct_chg": 7.94,
+      "amount": 2312809499.0,
+      "layer_one_score": 93.57
+    },
+    {
+      "rank": 23,
+      "code": "002208",
+      "name": "合肥城建",
+      "close": 18.77,
+      "pct_chg": 6.77,
+      "amount": 2198099335.0,
+      "layer_one_score": 93.5
+    },
+    {
+      "rank": 24,
+      "code": "001287",
+      "name": "中电港",
+      "close": 29.41,
+      "pct_chg": 7.34,
+      "amount": 2647268300.0,
+      "layer_one_score": 93.43
+    },
+    {
+      "rank": 25,
+      "code": "600366",
+      "name": "宁波韵升",
+      "close": 14.91,
+      "pct_chg": 5.89,
+      "amount": 1688544821.0,
+      "layer_one_score": 93.42
+    },
+    {
+      "rank": 26,
+      "code": "603119",
+      "name": "浙江荣泰",
+      "close": 75.4,
+      "pct_chg": 5.6,
+      "amount": 1948195907.0,
+      "layer_one_score": 93.36
+    },
+    {
+      "rank": 27,
+      "code": "605111",
+      "name": "新洁能",
+      "close": 74.3,
+      "pct_chg": 4.43,
+      "amount": 2039284274.0,
+      "layer_one_score": 93.23
+    },
+    {
+      "rank": 28,
+      "code": "600184",
+      "name": "光电股份",
+      "close": 28.22,
+      "pct_chg": 5.81,
+      "amount": 1461199960.0,
+      "layer_one_score": 93.02
+    },
+    {
+      "rank": 29,
+      "code": "002056",
+      "name": "横店东磁",
+      "close": 27.13,
+      "pct_chg": 5.44,
+      "amount": 2850709271.0,
+      "layer_one_score": 92.99
+    },
+    {
+      "rank": 30,
+      "code": "000988",
+      "name": "华工科技",
+      "close": 177.55,
+      "pct_chg": 4.13,
+      "amount": 13779668935.0,
+      "layer_one_score": 92.81
+    },
+    {
+      "rank": 31,
+      "code": "002044",
+      "name": "美年健康",
+      "close": 5.6,
+      "pct_chg": 7.08,
+      "amount": 1768560488.0,
+      "layer_one_score": 92.8
+    },
+    {
+      "rank": 32,
+      "code": "000831",
+      "name": "中国稀土",
+      "close": 61.9,
+      "pct_chg": 4.75,
+      "amount": 4813388324.0,
+      "layer_one_score": 92.78
+    },
+    {
+      "rank": 33,
+      "code": "002364",
+      "name": "中恒电气",
+      "close": 54.16,
+      "pct_chg": 4.17,
+      "amount": 2021803183.0,
+      "layer_one_score": 92.78
+    },
+    {
+      "rank": 34,
+      "code": "603859",
+      "name": "能科科技",
+      "close": 52.9,
+      "pct_chg": 4.2,
+      "amount": 1942930209.0,
+      "layer_one_score": 92.58
+    },
+    {
+      "rank": 35,
+      "code": "002290",
+      "name": "禾盛新材",
+      "close": 89.19,
+      "pct_chg": 6.97,
+      "amount": 1023027366.0,
+      "layer_one_score": 92.43
+    },
+    {
+      "rank": 36,
+      "code": "601609",
+      "name": "金田股份",
+      "close": 13.0,
+      "pct_chg": 6.82,
+      "amount": 1660738153.0,
+      "layer_one_score": 92.39
+    },
+    {
+      "rank": 37,
+      "code": "600580",
+      "name": "卧龙电驱",
+      "close": 36.2,
+      "pct_chg": 3.73,
+      "amount": 1949534987.0,
+      "layer_one_score": 92.38
+    },
+    {
+      "rank": 38,
+      "code": "000970",
+      "name": "中科三环",
+      "close": 14.94,
+      "pct_chg": 4.7,
+      "amount": 2121050012.0,
+      "layer_one_score": 92.36
+    },
+    {
+      "rank": 39,
+      "code": "601689",
+      "name": "拓普集团",
+      "close": 62.3,
+      "pct_chg": 3.64,
+      "amount": 2705768016.0,
+      "layer_one_score": 92.18
+    },
+    {
+      "rank": 40,
+      "code": "600246",
+      "name": "万通发展",
+      "close": 18.65,
+      "pct_chg": 5.91,
+      "amount": 3537897317.0,
+      "layer_one_score": 92.13
+    },
+    {
+      "rank": 41,
+      "code": "002436",
+      "name": "兴森科技",
+      "close": 52.06,
+      "pct_chg": 8.91,
+      "amount": 11770216347.0,
+      "layer_one_score": 92.11
+    },
+    {
+      "rank": 42,
+      "code": "002902",
+      "name": "铭普光磁",
+      "close": 36.77,
+      "pct_chg": 4.61,
+      "amount": 1454365543.0,
+      "layer_one_score": 92.06
+    },
+    {
+      "rank": 43,
+      "code": "002261",
+      "name": "拓维信息",
+      "close": 30.54,
+      "pct_chg": 3.52,
+      "amount": 2363961640.0,
+      "layer_one_score": 91.89
+    },
+    {
+      "rank": 44,
+      "code": "002824",
+      "name": "和胜股份",
+      "close": 37.92,
+      "pct_chg": 5.51,
+      "amount": 1152039772.0,
+      "layer_one_score": 91.87
+    },
+    {
+      "rank": 45,
+      "code": "002916",
+      "name": "深南电路",
+      "close": 453.8,
+      "pct_chg": 2.15,
+      "amount": 8582813682.0,
+      "layer_one_score": 91.86
+    },
+    {
+      "rank": 46,
+      "code": "603687",
+      "name": "大胜达",
+      "close": 19.45,
+      "pct_chg": 5.42,
+      "amount": 1260110141.0,
+      "layer_one_score": 91.76
+    },
+    {
+      "rank": 47,
+      "code": "000032",
+      "name": "深桑达Ａ",
+      "close": 24.6,
+      "pct_chg": 5.94,
+      "amount": 3666822512.0,
+      "layer_one_score": 91.65
+    },
+    {
+      "rank": 48,
+      "code": "002472",
+      "name": "双环传动",
+      "close": 43.78,
+      "pct_chg": 4.84,
+      "amount": 2321405785.0,
+      "layer_one_score": 91.41
+    },
+    {
+      "rank": 49,
+      "code": "002821",
+      "name": "凯莱英",
+      "close": 123.82,
+      "pct_chg": 7.67,
+      "amount": 869557787.0,
+      "layer_one_score": 91.37
+    },
+    {
+      "rank": 50,
+      "code": "002050",
+      "name": "三花智控",
+      "close": 45.74,
+      "pct_chg": 2.56,
+      "amount": 5678369610.0,
+      "layer_one_score": 91.21
+    },
+    {
+      "rank": 51,
+      "code": "600522",
+      "name": "中天科技",
+      "close": 56.55,
+      "pct_chg": 2.99,
+      "amount": 16052977965.0,
+      "layer_one_score": 91.16
+    },
+    {
+      "rank": 52,
+      "code": "603890",
+      "name": "XD春秋电",
+      "close": 25.75,
+      "pct_chg": 3.46,
+      "amount": 1574236785.0,
+      "layer_one_score": 91.15
+    },
+    {
+      "rank": 53,
+      "code": "002273",
+      "name": "水晶光电",
+      "close": 36.94,
+      "pct_chg": 3.39,
+      "amount": 2771261972.0,
+      "layer_one_score": 91.14
+    },
+    {
+      "rank": 54,
+      "code": "603516",
+      "name": "XD淳中科",
+      "close": 142.17,
+      "pct_chg": 4.9,
+      "amount": 1387015543.0,
+      "layer_one_score": 91.06
+    },
+    {
+      "rank": 55,
+      "code": "001270",
+      "name": "铖昌科技",
+      "close": 134.28,
+      "pct_chg": 5.09,
+      "amount": 1495910880.0,
+      "layer_one_score": 91.01
+    },
+    {
+      "rank": 56,
+      "code": "002119",
+      "name": "康强电子",
+      "close": 34.51,
+      "pct_chg": 4.04,
+      "amount": 2917391557.0,
+      "layer_one_score": 90.93
+    },
+    {
+      "rank": 57,
+      "code": "603306",
+      "name": "华懋科技",
+      "close": 111.5,
+      "pct_chg": 3.28,
+      "amount": 1348445886.0,
+      "layer_one_score": 90.78
+    },
+    {
+      "rank": 58,
+      "code": "603019",
+      "name": "中科曙光",
+      "close": 88.68,
+      "pct_chg": 2.51,
+      "amount": 4957579971.0,
+      "layer_one_score": 90.75
+    },
+    {
+      "rank": 59,
+      "code": "601126",
+      "name": "四方股份",
+      "close": 74.63,
+      "pct_chg": 5.3,
+      "amount": 3585455102.0,
+      "layer_one_score": 90.74
+    },
+    {
+      "rank": 60,
+      "code": "002636",
+      "name": "金安国纪",
+      "close": 104.41,
+      "pct_chg": 9.09,
+      "amount": 4069360989.0,
+      "layer_one_score": 90.56
+    },
+    {
+      "rank": 61,
+      "code": "002957",
+      "name": "科瑞技术",
+      "close": 60.15,
+      "pct_chg": 5.32,
+      "amount": 3073322430.0,
+      "layer_one_score": 90.42
+    },
+    {
+      "rank": 62,
+      "code": "000681",
+      "name": "视觉中国",
+      "close": 21.7,
+      "pct_chg": 5.03,
+      "amount": 1480262811.0,
+      "layer_one_score": 90.38
+    },
+    {
+      "rank": 63,
+      "code": "603308",
+      "name": "应流股份",
+      "close": 68.18,
+      "pct_chg": 6.58,
+      "amount": 3117637135.0,
+      "layer_one_score": 90.34
+    },
+    {
+      "rank": 64,
+      "code": "603065",
+      "name": "宿迁联盛",
+      "close": 15.62,
+      "pct_chg": 5.47,
+      "amount": 1056999180.0,
+      "layer_one_score": 90.32
+    },
+    {
+      "rank": 65,
+      "code": "600783",
+      "name": "鲁信创投",
+      "close": 21.13,
+      "pct_chg": 6.02,
+      "amount": 1200983808.0,
+      "layer_one_score": 90.23
+    },
+    {
+      "rank": 66,
+      "code": "002185",
+      "name": "华天科技",
+      "close": 19.61,
+      "pct_chg": 2.94,
+      "amount": 9239210689.0,
+      "layer_one_score": 90.22
+    },
+    {
+      "rank": 67,
+      "code": "600885",
+      "name": "宏发股份",
+      "close": 35.5,
+      "pct_chg": 4.6,
+      "amount": 859891336.0,
+      "layer_one_score": 90.22
+    },
+    {
+      "rank": 68,
+      "code": "603588",
+      "name": "高能环境",
+      "close": 16.01,
+      "pct_chg": 3.22,
+      "amount": 1259442474.0,
+      "layer_one_score": 89.99
+    },
+    {
+      "rank": 69,
+      "code": "600276",
+      "name": "恒瑞医药",
+      "close": 48.42,
+      "pct_chg": 3.04,
+      "amount": 5748480210.0,
+      "layer_one_score": 89.95
+    },
+    {
+      "rank": 70,
+      "code": "002708",
+      "name": "光洋股份",
+      "close": 15.18,
+      "pct_chg": 7.43,
+      "amount": 690682957.0,
+      "layer_one_score": 89.91
+    },
+    {
+      "rank": 71,
+      "code": "002685",
+      "name": "华东重机",
+      "close": 7.14,
+      "pct_chg": 7.37,
+      "amount": 759323560.0,
+      "layer_one_score": 89.84
+    },
+    {
+      "rank": 72,
+      "code": "603179",
+      "name": "新泉股份",
+      "close": 52.6,
+      "pct_chg": 4.45,
+      "amount": 1891584866.0,
+      "layer_one_score": 89.73
+    },
+    {
+      "rank": 73,
+      "code": "003018",
+      "name": "金富科技",
+      "close": 65.92,
+      "pct_chg": 6.49,
+      "amount": 1188488897.0,
+      "layer_one_score": 89.73
+    },
+    {
+      "rank": 74,
+      "code": "600141",
+      "name": "兴发集团",
+      "close": 38.65,
+      "pct_chg": 2.79,
+      "amount": 2919916002.0,
+      "layer_one_score": 89.69
+    },
+    {
+      "rank": 75,
+      "code": "002326",
+      "name": "永太科技",
+      "close": 23.21,
+      "pct_chg": 3.66,
+      "amount": 1451717677.0,
+      "layer_one_score": 89.65
+    },
+    {
+      "rank": 76,
+      "code": "002601",
+      "name": "龙佰集团",
+      "close": 15.48,
+      "pct_chg": 4.24,
+      "amount": 1163009999.0,
+      "layer_one_score": 89.64
+    },
+    {
+      "rank": 77,
+      "code": "600183",
+      "name": "生益科技",
+      "close": 183.87,
+      "pct_chg": 2.06,
+      "amount": 14605138345.0,
+      "layer_one_score": 89.57
+    },
+    {
+      "rank": 78,
+      "code": "600378",
+      "name": "昊华科技",
+      "close": 65.16,
+      "pct_chg": 2.13,
+      "amount": 6638928970.0,
+      "layer_one_score": 89.55
+    },
+    {
+      "rank": 79,
+      "code": "603757",
+      "name": "大元泵业",
+      "close": 56.06,
+      "pct_chg": 5.59,
+      "amount": 778528761.0,
+      "layer_one_score": 89.55
+    },
+    {
+      "rank": 80,
+      "code": "000795",
+      "name": "英洛华",
+      "close": 9.84,
+      "pct_chg": 5.35,
+      "amount": 624077008.0,
+      "layer_one_score": 89.49
+    },
+    {
+      "rank": 81,
+      "code": "600879",
+      "name": "航天电子",
+      "close": 20.66,
+      "pct_chg": 2.28,
+      "amount": 3914404865.0,
+      "layer_one_score": 89.45
+    },
+    {
+      "rank": 82,
+      "code": "600460",
+      "name": "士兰微",
+      "close": 41.83,
+      "pct_chg": 2.45,
+      "amount": 5978511055.0,
+      "layer_one_score": 89.15
+    },
+    {
+      "rank": 83,
+      "code": "002409",
+      "name": "雅克科技",
+      "close": 150.16,
+      "pct_chg": 1.51,
+      "amount": 4693928728.0,
+      "layer_one_score": 89.13
+    },
+    {
+      "rank": 84,
+      "code": "600392",
+      "name": "盛和资源",
+      "close": 31.66,
+      "pct_chg": 10.01,
+      "amount": 8311378475.0,
+      "layer_one_score": 88.88
+    },
+    {
+      "rank": 85,
+      "code": "002484",
+      "name": "江海股份",
+      "close": 108.06,
+      "pct_chg": 2.98,
+      "amount": 5500856179.0,
+      "layer_one_score": 88.84
+    },
+    {
+      "rank": 86,
+      "code": "603285",
+      "name": "键邦股份",
+      "close": 54.43,
+      "pct_chg": 7.61,
+      "amount": 623327966.0,
+      "layer_one_score": 88.83
+    },
+    {
+      "rank": 87,
+      "code": "002281",
+      "name": "光迅科技",
+      "close": 266.2,
+      "pct_chg": 10.0,
+      "amount": 10477798877.0,
+      "layer_one_score": 88.79
+    },
+    {
+      "rank": 88,
+      "code": "002896",
+      "name": "中大力德",
+      "close": 82.3,
+      "pct_chg": 3.27,
+      "amount": 1446591068.0,
+      "layer_one_score": 88.79
+    },
+    {
+      "rank": 89,
+      "code": "600362",
+      "name": "江西铜业",
+      "close": 53.31,
+      "pct_chg": 10.01,
+      "amount": 6580530569.0,
+      "layer_one_score": 88.76
+    },
+    {
+      "rank": 90,
+      "code": "601869",
+      "name": "长飞光纤",
+      "close": 471.55,
+      "pct_chg": 2.4,
+      "amount": 7461804586.0,
+      "layer_one_score": 88.65
+    },
+    {
+      "rank": 91,
+      "code": "605168",
+      "name": "三人行",
+      "close": 54.16,
+      "pct_chg": 7.61,
+      "amount": 641199758.0,
+      "layer_one_score": 88.55
+    },
+    {
+      "rank": 92,
+      "code": "000657",
+      "name": "中钨高新",
+      "close": 98.48,
+      "pct_chg": 10.0,
+      "amount": 8568251961.0,
+      "layer_one_score": 88.53
+    },
+    {
+      "rank": 93,
+      "code": "603110",
+      "name": "东方材料",
+      "close": 24.11,
+      "pct_chg": 6.4,
+      "amount": 500861082.0,
+      "layer_one_score": 88.45
+    },
+    {
+      "rank": 94,
+      "code": "603156",
+      "name": "养元饮品",
+      "close": 45.68,
+      "pct_chg": 4.08,
+      "amount": 682720090.0,
+      "layer_one_score": 88.44
+    },
+    {
+      "rank": 95,
+      "code": "002584",
+      "name": "西陇科学",
+      "close": 8.86,
+      "pct_chg": 4.98,
+      "amount": 684994373.0,
+      "layer_one_score": 88.38
+    },
+    {
+      "rank": 96,
+      "code": "601633",
+      "name": "长城汽车",
+      "close": 17.65,
+      "pct_chg": 4.93,
+      "amount": 796233069.0,
+      "layer_one_score": 88.32
+    },
+    {
+      "rank": 97,
+      "code": "603220",
+      "name": "中贝通信",
+      "close": 25.22,
+      "pct_chg": 3.91,
+      "amount": 924175483.0,
+      "layer_one_score": 88.28
+    },
+    {
+      "rank": 98,
+      "code": "600683",
+      "name": "京投发展",
+      "close": 13.63,
+      "pct_chg": 7.41,
+      "amount": 534115489.0,
+      "layer_one_score": 88.23
+    },
+    {
+      "rank": 99,
+      "code": "600667",
+      "name": "太极实业",
+      "close": 20.92,
+      "pct_chg": 9.99,
+      "amount": 7410143554.0,
+      "layer_one_score": 88.21
+    },
+    {
+      "rank": 100,
+      "code": "002937",
+      "name": "兴瑞科技",
+      "close": 42.6,
+      "pct_chg": 4.64,
+      "amount": 757223387.0,
+      "layer_one_score": 88.21
+    },
+    {
+      "rank": 101,
+      "code": "002371",
+      "name": "北方华创",
+      "close": 721.04,
+      "pct_chg": 2.39,
+      "amount": 7528527762.0,
+      "layer_one_score": 88.19
+    },
+    {
+      "rank": 102,
+      "code": "000733",
+      "name": "振华科技",
+      "close": 59.79,
+      "pct_chg": 2.86,
+      "amount": 2765741135.0,
+      "layer_one_score": 88.16
+    },
+    {
+      "rank": 103,
+      "code": "002831",
+      "name": "裕同科技",
+      "close": 32.33,
+      "pct_chg": 4.63,
+      "amount": 521321843.0,
+      "layer_one_score": 88.16
+    },
+    {
+      "rank": 104,
+      "code": "002842",
+      "name": "翔鹭钨业",
+      "close": 47.72,
+      "pct_chg": 10.01,
+      "amount": 3870358328.0,
+      "layer_one_score": 88.11
+    },
+    {
+      "rank": 105,
+      "code": "002145",
+      "name": "钛能化学",
+      "close": 4.68,
+      "pct_chg": 4.93,
+      "amount": 580633066.0,
+      "layer_one_score": 88.02
+    },
+    {
+      "rank": 106,
+      "code": "600108",
+      "name": "亚盛集团",
+      "close": 3.61,
+      "pct_chg": 5.25,
+      "amount": 924916129.0,
+      "layer_one_score": 87.96
+    },
+    {
+      "rank": 107,
+      "code": "002965",
+      "name": "祥鑫科技",
+      "close": 43.92,
+      "pct_chg": 3.34,
+      "amount": 760908028.0,
+      "layer_one_score": 87.94
+    },
+    {
+      "rank": 108,
+      "code": "603087",
+      "name": "甘李药业",
+      "close": 56.7,
+      "pct_chg": 4.84,
+      "amount": 697668915.0,
+      "layer_one_score": 87.94
+    },
+    {
+      "rank": 109,
+      "code": "002913",
+      "name": "奥士康",
+      "close": 70.03,
+      "pct_chg": 3.93,
+      "amount": 673307880.0,
+      "layer_one_score": 87.91
+    },
+    {
+      "rank": 110,
+      "code": "002230",
+      "name": "科大讯飞",
+      "close": 42.61,
+      "pct_chg": 2.45,
+      "amount": 2825097516.0,
+      "layer_one_score": 87.89
+    },
+    {
+      "rank": 111,
+      "code": "002297",
+      "name": "博云新材",
+      "close": 28.36,
+      "pct_chg": 10.01,
+      "amount": 3292499350.0,
+      "layer_one_score": 87.85
+    },
+    {
+      "rank": 112,
+      "code": "600259",
+      "name": "中稀有色",
+      "close": 116.28,
+      "pct_chg": 10.0,
+      "amount": 3815954808.0,
+      "layer_one_score": 87.8
+    },
+    {
+      "rank": 113,
+      "code": "001212",
+      "name": "中旗新材",
+      "close": 49.3,
+      "pct_chg": 6.48,
+      "amount": 740336466.0,
+      "layer_one_score": 87.79
+    },
+    {
+      "rank": 114,
+      "code": "600397",
+      "name": "江钨装备",
+      "close": 20.2,
+      "pct_chg": 10.02,
+      "amount": 2956050656.0,
+      "layer_one_score": 87.75
+    },
+    {
+      "rank": 115,
+      "code": "603698",
+      "name": "航天工程",
+      "close": 33.03,
+      "pct_chg": 4.13,
+      "amount": 837092711.0,
+      "layer_one_score": 87.73
+    },
+    {
+      "rank": 116,
+      "code": "002407",
+      "name": "多氟多",
+      "close": 38.78,
+      "pct_chg": 0.81,
+      "amount": 6855759578.0,
+      "layer_one_score": 87.71
+    },
+    {
+      "rank": 117,
+      "code": "002463",
+      "name": "沪电股份",
+      "close": 147.9,
+      "pct_chg": 0.92,
+      "amount": 12271729868.0,
+      "layer_one_score": 87.52
+    },
+    {
+      "rank": 118,
+      "code": "601208",
+      "name": "东材科技",
+      "close": 74.83,
+      "pct_chg": 2.23,
+      "amount": 6474979163.0,
+      "layer_one_score": 87.5
+    },
+    {
+      "rank": 119,
+      "code": "002156",
+      "name": "通富微电",
+      "close": 68.27,
+      "pct_chg": 1.56,
+      "amount": 11133168549.0,
+      "layer_one_score": 87.41
+    },
+    {
+      "rank": 120,
+      "code": "600316",
+      "name": "洪都航空",
+      "close": 28.02,
+      "pct_chg": 4.87,
+      "amount": 560710189.0,
+      "layer_one_score": 87.37
+    }
+  ],
+  "matched_library": [
+    {
+      "code": "601138",
+      "name": "工业富联",
+      "close": 78.08,
+      "pct_chg": 7.49,
+      "amount": 33063388881.0,
+      "layer_one_score": 96.31,
+      "layer_one_rank": 2
+    },
+    {
+      "code": "000988",
+      "name": "华工科技",
+      "close": 177.55,
+      "pct_chg": 4.13,
+      "amount": 13779668935.0,
+      "layer_one_score": 92.81,
+      "layer_one_rank": 30
+    },
+    {
+      "code": "000831",
+      "name": "中国稀土",
+      "close": 61.9,
+      "pct_chg": 4.75,
+      "amount": 4813388324.0,
+      "layer_one_score": 92.78,
+      "layer_one_rank": 32
+    },
+    {
+      "code": "601689",
+      "name": "拓普集团",
+      "close": 62.3,
+      "pct_chg": 3.64,
+      "amount": 2705768016.0,
+      "layer_one_score": 92.18,
+      "layer_one_rank": 39
+    },
+    {
+      "code": "002916",
+      "name": "深南电路",
+      "close": 453.8,
+      "pct_chg": 2.15,
+      "amount": 8582813682.0,
+      "layer_one_score": 91.86,
+      "layer_one_rank": 45
+    },
+    {
+      "code": "002472",
+      "name": "双环传动",
+      "close": 43.78,
+      "pct_chg": 4.84,
+      "amount": 2321405785.0,
+      "layer_one_score": 91.41,
+      "layer_one_rank": 48
+    },
+    {
+      "code": "002050",
+      "name": "三花智控",
+      "close": 45.74,
+      "pct_chg": 2.56,
+      "amount": 5678369610.0,
+      "layer_one_score": 91.21,
+      "layer_one_rank": 50
+    },
+    {
+      "code": "002185",
+      "name": "华天科技",
+      "close": 19.61,
+      "pct_chg": 2.94,
+      "amount": 9239210689.0,
+      "layer_one_score": 90.22,
+      "layer_one_rank": 66
+    },
+    {
+      "code": "600276",
+      "name": "恒瑞医药",
+      "close": 48.42,
+      "pct_chg": 3.04,
+      "amount": 5748480210.0,
+      "layer_one_score": 89.95,
+      "layer_one_rank": 69
+    },
+    {
+      "code": "002409",
+      "name": "雅克科技",
+      "close": 150.16,
+      "pct_chg": 1.51,
+      "amount": 4693928728.0,
+      "layer_one_score": 89.13,
+      "layer_one_rank": 83
+    },
+    {
+      "code": "002371",
+      "name": "北方华创",
+      "close": 721.04,
+      "pct_chg": 2.39,
+      "amount": 7528527762.0,
+      "layer_one_score": 88.19,
+      "layer_one_rank": 101
+    },
+    {
+      "code": "002463",
+      "name": "沪电股份",
+      "close": 147.9,
+      "pct_chg": 0.92,
+      "amount": 12271729868.0,
+      "layer_one_score": 87.52,
+      "layer_one_rank": 117
+    },
+    {
+      "code": "002156",
+      "name": "通富微电",
+      "close": 68.27,
+      "pct_chg": 1.56,
+      "amount": 11133168549.0,
+      "layer_one_score": 87.41,
+      "layer_one_rank": 119
+    },
+    {
+      "code": "002747",
+      "name": "埃斯顿",
+      "close": 36.5,
+      "pct_chg": 10.01,
+      "amount": 2578064708.0,
+      "layer_one_score": 87.25,
+      "layer_one_rank": 122
+    },
+    {
+      "code": "603728",
+      "name": "XD鸣志电",
+      "close": 63.86,
+      "pct_chg": 4.16,
+      "amount": 812790196.0,
+      "layer_one_score": 86.42,
+      "layer_one_rank": 144
+    },
+    {
+      "code": "600111",
+      "name": "北方稀土",
+      "close": 51.4,
+      "pct_chg": 2.15,
+      "amount": 9366614587.0,
+      "layer_one_score": 85.68,
+      "layer_one_rank": 160
+    },
+    {
+      "code": "600584",
+      "name": "长电科技",
+      "close": 83.03,
+      "pct_chg": 1.55,
+      "amount": 19547621790.0,
+      "layer_one_score": 84.18,
+      "layer_one_rank": 199
+    },
+    {
+      "code": "600875",
+      "name": "东方电气",
+      "close": 32.56,
+      "pct_chg": 2.68,
+      "amount": 3021473614.0,
+      "layer_one_score": 83.96,
+      "layer_one_rank": 204
+    },
+    {
+      "code": "002594",
+      "name": "比亚迪",
+      "close": 88.13,
+      "pct_chg": 0.76,
+      "amount": 3820166910.0,
+      "layer_one_score": 83.61,
+      "layer_one_rank": 211
+    },
+    {
+      "code": "603228",
+      "name": "景旺电子",
+      "close": 81.06,
+      "pct_chg": 0.37,
+      "amount": 4156614482.0,
+      "layer_one_score": 82.29,
+      "layer_one_rank": 242
+    },
+    {
+      "code": "000630",
+      "name": "铜陵有色",
+      "close": 7.65,
+      "pct_chg": 1.19,
+      "amount": 6598819896.0,
+      "layer_one_score": 82.28,
+      "layer_one_rank": 244
+    },
+    {
+      "code": "000625",
+      "name": "长安汽车",
+      "close": 7.45,
+      "pct_chg": 0.81,
+      "amount": 716281230.0,
+      "layer_one_score": 80.96,
+      "layer_one_rank": 271
+    },
+    {
+      "code": "000960",
+      "name": "锡业股份",
+      "close": 41.74,
+      "pct_chg": 0.75,
+      "amount": 4604593806.0,
+      "layer_one_score": 79.82,
+      "layer_one_rank": 297
+    },
+    {
+      "code": "002028",
+      "name": "思源电气",
+      "close": 190.2,
+      "pct_chg": 1.75,
+      "amount": 2660200023.0,
+      "layer_one_score": 77.25,
+      "layer_one_rank": 358
+    },
+    {
+      "code": "002920",
+      "name": "德赛西威",
+      "close": 87.75,
+      "pct_chg": -0.51,
+      "amount": 638983478.0,
+      "layer_one_score": 70.37,
+      "layer_one_rank": 544
+    },
+    {
+      "code": "600089",
+      "name": "特变电工",
+      "close": 23.32,
+      "pct_chg": -0.51,
+      "amount": 2785272987.0,
+      "layer_one_score": 69.26,
+      "layer_one_rank": 567
+    },
+    {
+      "code": "600406",
+      "name": "国电南瑞",
+      "close": 23.06,
+      "pct_chg": -1.11,
+      "amount": 1408490849.0,
+      "layer_one_score": 59.23,
+      "layer_one_rank": 819
+    },
+    {
+      "code": "000651",
+      "name": "格力电器",
+      "close": 36.72,
+      "pct_chg": -1.16,
+      "amount": 2034804550.0,
+      "layer_one_score": 57.38,
+      "layer_one_rank": 896
+    },
+    {
+      "code": "000333",
+      "name": "美的集团",
+      "close": 78.0,
+      "pct_chg": -1.54,
+      "amount": 2850857596.0,
+      "layer_one_score": 53.91,
+      "layer_one_rank": 1017
+    },
+    {
+      "code": "600519",
+      "name": "贵州茅台",
+      "close": 1215.0,
+      "pct_chg": -2.02,
+      "amount": 7016713941.0,
+      "layer_one_score": 51.41,
+      "layer_one_rank": 1105
+    },
+    {
+      "code": "601727",
+      "name": "上海电气",
+      "close": 7.31,
+      "pct_chg": -1.48,
+      "amount": 824399961.0,
+      "layer_one_score": 51.14,
+      "layer_one_rank": 1118
+    },
+    {
+      "code": "601127",
+      "name": "赛力斯",
+      "close": 64.81,
+      "pct_chg": -2.01,
+      "amount": 2066866157.0,
+      "layer_one_score": 50.64,
+      "layer_one_rank": 1136
+    },
+    {
+      "code": "601899",
+      "name": "紫金矿业",
+      "close": 29.69,
+      "pct_chg": -2.43,
+      "amount": 10845890995.0,
+      "layer_one_score": 50.29,
+      "layer_one_rank": 1150
+    },
+    {
+      "code": "600887",
+      "name": "伊利股份",
+      "close": 24.26,
+      "pct_chg": -1.66,
+      "amount": 1232827198.0,
+      "layer_one_score": 49.84,
+      "layer_one_rank": 1164
+    },
+    {
+      "code": "000538",
+      "name": "云南白药",
+      "close": 48.43,
+      "pct_chg": -0.98,
+      "amount": 374332612.0,
+      "layer_one_score": 47.59,
+      "layer_one_rank": 1256
+    },
+    {
+      "code": "600150",
+      "name": "中国船舶",
+      "close": 36.14,
+      "pct_chg": -2.72,
+      "amount": 4313475328.0,
+      "layer_one_score": 47.28,
+      "layer_one_rank": 1265
+    },
+    {
+      "code": "600312",
+      "name": "平高电气",
+      "close": 18.69,
+      "pct_chg": -1.68,
+      "amount": 361883778.0,
+      "layer_one_score": 46.24,
+      "layer_one_rank": 1321
+    },
+    {
+      "code": "603606",
+      "name": "东方电缆",
+      "close": 39.93,
+      "pct_chg": -2.3,
+      "amount": 790418687.0,
+      "layer_one_score": 45.35,
+      "layer_one_rank": 1365
+    },
+    {
+      "code": "600893",
+      "name": "航发动力",
+      "close": 39.02,
+      "pct_chg": -2.01,
+      "amount": 1344167539.0,
+      "layer_one_score": 44.97,
+      "layer_one_rank": 1383
+    },
+    {
+      "code": "000858",
+      "name": "五 粮 液",
+      "close": 75.85,
+      "pct_chg": -2.12,
+      "amount": 2499475187.0,
+      "layer_one_score": 44.92,
+      "layer_one_rank": 1388
+    },
+    {
+      "code": "600760",
+      "name": "中航沈飞",
+      "close": 41.27,
+      "pct_chg": -2.06,
+      "amount": 637957563.0,
+      "layer_one_score": 44.35,
+      "layer_one_rank": 1408
+    },
+    {
+      "code": "601179",
+      "name": "中国西电",
+      "close": 15.26,
+      "pct_chg": -3.36,
+      "amount": 3650109539.0,
+      "layer_one_score": 43.07,
+      "layer_one_rank": 1457
+    },
+    {
+      "code": "600036",
+      "name": "招商银行",
+      "close": 37.26,
+      "pct_chg": -2.54,
+      "amount": 3765522215.0,
+      "layer_one_score": 42.11,
+      "layer_one_rank": 1488
+    },
+    {
+      "code": "600030",
+      "name": "中信证券",
+      "close": 26.56,
+      "pct_chg": -2.96,
+      "amount": 5183913753.0,
+      "layer_one_score": 40.99,
+      "layer_one_rank": 1531
+    },
+    {
+      "code": "600489",
+      "name": "中金黄金",
+      "close": 21.92,
+      "pct_chg": -3.44,
+      "amount": 1629847220.0,
+      "layer_one_score": 40.57,
+      "layer_one_rank": 1554
+    },
+    {
+      "code": "600085",
+      "name": "同仁堂",
+      "close": 23.5,
+      "pct_chg": -1.84,
+      "amount": 165562700.0,
+      "layer_one_score": 37.55,
+      "layer_one_rank": 1709
+    },
+    {
+      "code": "000768",
+      "name": "中航西飞",
+      "close": 20.59,
+      "pct_chg": -3.29,
+      "amount": 666910240.0,
+      "layer_one_score": 34.26,
+      "layer_one_rank": 1871
+    },
+    {
+      "code": "600547",
+      "name": "山东黄金",
+      "close": 26.91,
+      "pct_chg": -4.78,
+      "amount": 1743828558.0,
+      "layer_one_score": 31.56,
+      "layer_one_rank": 1987
+    },
+    {
+      "code": "601600",
+      "name": "中国铝业",
+      "close": 9.38,
+      "pct_chg": -5.92,
+      "amount": 4138194284.0,
+      "layer_one_score": 30.95,
+      "layer_one_rank": 2016
+    },
+    {
+      "code": "601318",
+      "name": "中国平安",
+      "close": 49.38,
+      "pct_chg": -6.41,
+      "amount": 10954978558.0,
+      "layer_one_score": 28.31,
+      "layer_one_rank": 2133
+    }
+  ],
+  "deep_analysis_count": 28,
+  "final_pool_size": 10
+}
