@@ -1,0 +1,559 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-20T12:36:20+08:00",
+  "as_of_date": "2026-06-18",
+  "market": "A股主板",
+  "source_status": {
+    "quotes": "akshare.stock_zh_a_daily / Sina",
+    "fallback": false,
+    "note": "免费数据源可能延迟或限流；关键决策请复核实时行情。",
+    "warnings": []
+  },
+  "model": {
+    "name": "Serenity-style main-board screen",
+    "description": "长期趋势确认 → 产业链瓶颈 → 供需验证 → 低关注度/错定价 → 催化剂 → 估值重估。",
+    "board_filter": "000/001/002/003/600/601/603/605",
+    "candidates": [
+      {
+        "code": "601138",
+        "name": "工业富联",
+        "theme": "AI服务器/算力基础设施",
+        "logic": "AI算力扩张带动服务器制造与系统集成需求，属于产业链中可验证订单和交付进度的关键环节。",
+        "base_score": 6.4,
+        "catalysts": [
+          "AI服务器订单",
+          "大客户资本开支",
+          "业绩兑现"
+        ],
+        "risks": [
+          "估值消化",
+          "客户集中",
+          "短线涨幅后波动"
+        ]
+      },
+      {
+        "code": "002371",
+        "name": "北方华创",
+        "theme": "半导体设备",
+        "logic": "国产半导体设备替代与先进制程资本开支相关，属于供给受限、验证周期长的关键环节。",
+        "base_score": 6.4,
+        "catalysts": [
+          "国产替代",
+          "晶圆厂扩产",
+          "设备订单"
+        ],
+        "risks": [
+          "估值高",
+          "扩产节奏变化",
+          "技术验证不确定"
+        ]
+      },
+      {
+        "code": "000988",
+        "name": "华工科技",
+        "theme": "光模块/激光设备",
+        "logic": "同时受益于光通信升级和制造设备需求，关注光模块放量与激光装备景气度共振。",
+        "base_score": 6.4,
+        "catalysts": [
+          "光模块需求",
+          "激光设备订单",
+          "业绩兑现"
+        ],
+        "risks": [
+          "板块拥挤",
+          "订单波动",
+          "竞争加剧"
+        ]
+      },
+      {
+        "code": "002463",
+        "name": "沪电股份",
+        "theme": "AI PCB",
+        "logic": "AI服务器高速PCB需求提升，关注高端产能、良率和客户认证。",
+        "base_score": 6.0,
+        "catalysts": [
+          "AI服务器PCB",
+          "高端产能释放",
+          "客户认证"
+        ],
+        "risks": [
+          "60日涨幅偏高",
+          "波动放大",
+          "景气预期过满"
+        ]
+      },
+      {
+        "code": "002409",
+        "name": "雅克科技",
+        "theme": "电子材料",
+        "logic": "电子材料位于半导体上游关键耗材环节，关注国产替代、客户认证和产能释放。",
+        "base_score": 5.5,
+        "catalysts": [
+          "国产替代",
+          "材料认证",
+          "先进制程需求"
+        ],
+        "risks": [
+          "60日涨幅偏高",
+          "估值消化",
+          "客户验证周期长"
+        ]
+      },
+      {
+        "code": "002916",
+        "name": "深南电路",
+        "theme": "PCB/封装基板",
+        "logic": "高端PCB和封装基板受益于AI服务器与先进封装，关注产能利用率和高端产品占比。",
+        "base_score": 5.4,
+        "catalysts": [
+          "AI服务器PCB",
+          "封装基板",
+          "产能释放"
+        ],
+        "risks": [
+          "60日涨幅偏高",
+          "波动偏高",
+          "预期拥挤"
+        ]
+      },
+      {
+        "code": "002156",
+        "name": "通富微电",
+        "theme": "先进封装",
+        "logic": "先进封装是AI芯片扩产和国产替代的关键环节，弹性较高但周期波动也大。",
+        "base_score": 5.1,
+        "catalysts": [
+          "先进封装需求",
+          "国产替代",
+          "客户订单"
+        ],
+        "risks": [
+          "换手偏高",
+          "周期反复",
+          "盈利弹性不稳定"
+        ]
+      },
+      {
+        "code": "002185",
+        "name": "华天科技",
+        "theme": "封测",
+        "logic": "封测环节受益于半导体景气修复和先进封装渗透，需关注盈利改善质量。",
+        "base_score": 5.1,
+        "catalysts": [
+          "封测复苏",
+          "先进封装",
+          "国产替代"
+        ],
+        "risks": [
+          "换手偏高",
+          "盈利修复不确定",
+          "周期反复"
+        ]
+      },
+      {
+        "code": "603228",
+        "name": "景旺电子",
+        "theme": "PCB",
+        "logic": "PCB需求受AI硬件和汽车电子拉动，关注高端产能和客户结构升级。",
+        "base_score": 5.0,
+        "catalysts": [
+          "高端PCB",
+          "汽车电子",
+          "客户结构升级"
+        ],
+        "risks": [
+          "需求兑现慢",
+          "价格竞争",
+          "板块波动"
+        ]
+      },
+      {
+        "code": "600584",
+        "name": "长电科技",
+        "theme": "先进封装",
+        "logic": "全球封测龙头之一，先进封装和行业复苏是主要观察点。",
+        "base_score": 4.5,
+        "catalysts": [
+          "先进封装",
+          "行业复苏",
+          "大客户订单"
+        ],
+        "risks": [
+          "60日涨幅偏高",
+          "换手偏高",
+          "盈利修复节奏"
+        ]
+      }
+    ]
+  },
+  "summary": {
+    "total": 10,
+    "watch": 0,
+    "wait": 5,
+    "avoid": 5,
+    "overall_signal": "整体偏热，谨慎追高"
+  },
+  "stocks": [
+    {
+      "code": "000988",
+      "name": "华工科技",
+      "board": "深市主板",
+      "theme": "光模块/激光设备",
+      "logic": "同时受益于光通信升级和制造设备需求，关注光模块放量与激光装备景气度共振。",
+      "score": 6.1,
+      "close": 177.55,
+      "ma20": 158.12,
+      "ma60": 134.06,
+      "atr14": 9.89,
+      "pct60": 56.92,
+      "volatility20": 21.21,
+      "aggressive_price": 158.12,
+      "stable_price": 151.13,
+      "watch_zone": "151.13-158.12",
+      "no_chase_price": 170.77,
+      "invalid_price": 123.34,
+      "status_key": "avoid",
+      "intervention_status": "不追高",
+      "trigger_condition": "先等待回到观察区间，避免把长期逻辑变成短线追涨。",
+      "position_hint": "价格高于不追高线，等待涨幅和换手降温。",
+      "catalysts": [
+        "光模块需求",
+        "激光设备订单",
+        "业绩兑现"
+      ],
+      "risks": [
+        "短线偏离均线",
+        "板块拥挤",
+        "订单波动",
+        "竞争加剧"
+      ],
+      "as_of_date": "2026-06-18",
+      "rank": 1
+    },
+    {
+      "code": "601138",
+      "name": "工业富联",
+      "board": "沪市主板",
+      "theme": "AI服务器/算力基础设施",
+      "logic": "AI算力扩张带动服务器制造与系统集成需求，属于产业链中可验证订单和交付进度的关键环节。",
+      "score": 5.9,
+      "close": 78.08,
+      "ma20": 73.32,
+      "ma60": 64.51,
+      "atr14": 4.48,
+      "pct60": 64.03,
+      "volatility20": 19.12,
+      "aggressive_price": 73.32,
+      "stable_price": 69.61,
+      "watch_zone": "69.61-73.32",
+      "no_chase_price": 79.18,
+      "invalid_price": 59.35,
+      "status_key": "wait",
+      "intervention_status": "等回踩",
+      "trigger_condition": "接近观察区间且产业链证据未变弱时，再重新评估。",
+      "position_hint": "暂以观察为主，等价格接近观察区间再考虑。",
+      "catalysts": [
+        "AI服务器订单",
+        "大客户资本开支",
+        "业绩兑现"
+      ],
+      "risks": [
+        "60日涨幅偏高",
+        "估值消化",
+        "客户集中",
+        "短线涨幅后波动"
+      ],
+      "as_of_date": "2026-06-18",
+      "rank": 2
+    },
+    {
+      "code": "002371",
+      "name": "北方华创",
+      "board": "深市主板",
+      "theme": "半导体设备",
+      "logic": "国产半导体设备替代与先进制程资本开支相关，属于供给受限、验证周期长的关键环节。",
+      "score": 5.6,
+      "close": 721.04,
+      "ma20": 646.27,
+      "ma60": 551.89,
+      "atr14": 35.09,
+      "pct60": 62.25,
+      "volatility20": 15.46,
+      "aggressive_price": 646.27,
+      "stable_price": 609.63,
+      "watch_zone": "609.63-646.27",
+      "no_chase_price": 697.97,
+      "invalid_price": 507.74,
+      "status_key": "avoid",
+      "intervention_status": "不追高",
+      "trigger_condition": "先等待回到观察区间，避免把长期逻辑变成短线追涨。",
+      "position_hint": "价格高于不追高线，等待涨幅和换手降温。",
+      "catalysts": [
+        "国产替代",
+        "晶圆厂扩产",
+        "设备订单"
+      ],
+      "risks": [
+        "短线偏离均线",
+        "60日涨幅偏高",
+        "估值高",
+        "扩产节奏变化",
+        "技术验证不确定"
+      ],
+      "as_of_date": "2026-06-18",
+      "rank": 3
+    },
+    {
+      "code": "002463",
+      "name": "沪电股份",
+      "board": "深市主板",
+      "theme": "AI PCB",
+      "logic": "AI服务器高速PCB需求提升，关注高端产能、良率和客户认证。",
+      "score": 5.5,
+      "close": 147.9,
+      "ma20": 132.52,
+      "ma60": 107.2,
+      "atr14": 11.36,
+      "pct60": 85.18,
+      "volatility20": 24.35,
+      "aggressive_price": 132.52,
+      "stable_price": 116.97,
+      "watch_zone": "116.97-132.52",
+      "no_chase_price": 146.15,
+      "invalid_price": 98.63,
+      "status_key": "avoid",
+      "intervention_status": "不追高",
+      "trigger_condition": "先等待回到观察区间，避免把长期逻辑变成短线追涨。",
+      "position_hint": "价格高于不追高线，等待涨幅和换手降温。",
+      "catalysts": [
+        "AI服务器PCB",
+        "高端产能释放",
+        "客户认证"
+      ],
+      "risks": [
+        "60日涨幅偏高",
+        "波动放大",
+        "景气预期过满"
+      ],
+      "as_of_date": "2026-06-18",
+      "rank": 4
+    },
+    {
+      "code": "603228",
+      "name": "景旺电子",
+      "board": "沪市主板",
+      "theme": "PCB",
+      "logic": "PCB需求受AI硬件和汽车电子拉动，关注高端产能和客户结构升级。",
+      "score": 5.0,
+      "close": 81.06,
+      "ma20": 77.66,
+      "ma60": 69.36,
+      "atr14": 5.41,
+      "pct60": 45.9,
+      "volatility20": 22.03,
+      "aggressive_price": 77.27,
+      "stable_price": 72.76,
+      "watch_zone": "72.76-77.27",
+      "no_chase_price": 84.15,
+      "invalid_price": 63.81,
+      "status_key": "wait",
+      "intervention_status": "等回踩",
+      "trigger_condition": "接近观察区间且产业链证据未变弱时，再重新评估。",
+      "position_hint": "暂以观察为主，等价格接近观察区间再考虑。",
+      "catalysts": [
+        "高端PCB",
+        "汽车电子",
+        "客户结构升级"
+      ],
+      "risks": [
+        "需求兑现慢",
+        "价格竞争",
+        "板块波动"
+      ],
+      "as_of_date": "2026-06-18",
+      "rank": 5
+    },
+    {
+      "code": "002409",
+      "name": "雅克科技",
+      "board": "深市主板",
+      "theme": "电子材料",
+      "logic": "电子材料位于半导体上游关键耗材环节，关注国产替代、客户认证和产能释放。",
+      "score": 4.7,
+      "close": 150.16,
+      "ma20": 122.53,
+      "ma60": 100.57,
+      "atr14": 9.6,
+      "pct60": 91.73,
+      "volatility20": 24.5,
+      "aggressive_price": 122.53,
+      "stable_price": 115.45,
+      "watch_zone": "115.45-122.53",
+      "no_chase_price": 134.04,
+      "invalid_price": 92.52,
+      "status_key": "avoid",
+      "intervention_status": "不追高",
+      "trigger_condition": "先等待回到观察区间，避免把长期逻辑变成短线追涨。",
+      "position_hint": "价格高于不追高线，等待涨幅和换手降温。",
+      "catalysts": [
+        "国产替代",
+        "材料认证",
+        "先进制程需求"
+      ],
+      "risks": [
+        "短线偏离均线",
+        "60日涨幅偏高",
+        "估值消化",
+        "客户验证周期长"
+      ],
+      "as_of_date": "2026-06-18",
+      "rank": 6
+    },
+    {
+      "code": "002916",
+      "name": "深南电路",
+      "board": "深市主板",
+      "theme": "PCB/封装基板",
+      "logic": "高端PCB和封装基板受益于AI服务器与先进封装，关注产能利用率和高端产品占比。",
+      "score": 4.6,
+      "close": 453.8,
+      "ma20": 396.24,
+      "ma60": 319.98,
+      "atr14": 30.81,
+      "pct60": 95.54,
+      "volatility20": 22.77,
+      "aggressive_price": 396.24,
+      "stable_price": 377.25,
+      "watch_zone": "377.25-396.24",
+      "no_chase_price": 433.21,
+      "invalid_price": 294.38,
+      "status_key": "avoid",
+      "intervention_status": "不追高",
+      "trigger_condition": "先等待回到观察区间，避免把长期逻辑变成短线追涨。",
+      "position_hint": "价格高于不追高线，等待涨幅和换手降温。",
+      "catalysts": [
+        "AI服务器PCB",
+        "封装基板",
+        "产能释放"
+      ],
+      "risks": [
+        "短线偏离均线",
+        "60日涨幅偏高",
+        "波动偏高",
+        "预期拥挤"
+      ],
+      "as_of_date": "2026-06-18",
+      "rank": 7
+    },
+    {
+      "code": "002156",
+      "name": "通富微电",
+      "board": "深市主板",
+      "theme": "先进封装",
+      "logic": "先进封装是AI芯片扩产和国产替代的关键环节，弹性较高但周期波动也大。",
+      "score": 4.4,
+      "close": 68.27,
+      "ma20": 65.7,
+      "ma60": 54.93,
+      "atr14": 4.48,
+      "pct60": 64.39,
+      "volatility20": 26.0,
+      "aggressive_price": 65.13,
+      "stable_price": 62.13,
+      "watch_zone": "62.13-65.13",
+      "no_chase_price": 71.07,
+      "invalid_price": 50.54,
+      "status_key": "wait",
+      "intervention_status": "等回踩",
+      "trigger_condition": "接近观察区间且产业链证据未变弱时，再重新评估。",
+      "position_hint": "暂以观察为主，等价格接近观察区间再考虑。",
+      "catalysts": [
+        "先进封装需求",
+        "国产替代",
+        "客户订单"
+      ],
+      "risks": [
+        "波动偏高",
+        "60日涨幅偏高",
+        "换手偏高",
+        "周期反复",
+        "盈利弹性不稳定"
+      ],
+      "as_of_date": "2026-06-18",
+      "rank": 8
+    },
+    {
+      "code": "002185",
+      "name": "华天科技",
+      "board": "深市主板",
+      "theme": "封测",
+      "logic": "封测环节受益于半导体景气修复和先进封装渗透，需关注盈利改善质量。",
+      "score": 4.4,
+      "close": 19.61,
+      "ma20": 18.15,
+      "ma60": 14.71,
+      "atr14": 1.24,
+      "pct60": 61.13,
+      "volatility20": 26.54,
+      "aggressive_price": 18.15,
+      "stable_price": 16.48,
+      "watch_zone": "16.48-18.15",
+      "no_chase_price": 19.64,
+      "invalid_price": 13.53,
+      "status_key": "wait",
+      "intervention_status": "等回踩",
+      "trigger_condition": "接近观察区间且产业链证据未变弱时，再重新评估。",
+      "position_hint": "暂以观察为主，等价格接近观察区间再考虑。",
+      "catalysts": [
+        "封测复苏",
+        "先进封装",
+        "国产替代"
+      ],
+      "risks": [
+        "波动偏高",
+        "60日涨幅偏高",
+        "换手偏高",
+        "盈利修复不确定",
+        "周期反复"
+      ],
+      "as_of_date": "2026-06-18",
+      "rank": 9
+    },
+    {
+      "code": "600584",
+      "name": "长电科技",
+      "board": "沪市主板",
+      "theme": "先进封装",
+      "logic": "全球封测龙头之一，先进封装和行业复苏是主要观察点。",
+      "score": 3.8,
+      "close": 83.03,
+      "ma20": 77.88,
+      "ma60": 57.01,
+      "atr14": 5.56,
+      "pct60": 112.46,
+      "volatility20": 26.06,
+      "aggressive_price": 77.88,
+      "stable_price": 71.69,
+      "watch_zone": "71.69-77.88",
+      "no_chase_price": 84.55,
+      "invalid_price": 52.44,
+      "status_key": "wait",
+      "intervention_status": "等回踩",
+      "trigger_condition": "接近观察区间且产业链证据未变弱时，再重新评估。",
+      "position_hint": "暂以观察为主，等价格接近观察区间再考虑。",
+      "catalysts": [
+        "先进封装",
+        "行业复苏",
+        "大客户订单"
+      ],
+      "risks": [
+        "波动偏高",
+        "60日涨幅偏高",
+        "换手偏高",
+        "盈利修复节奏"
+      ],
+      "as_of_date": "2026-06-18",
+      "rank": 10
+    }
+  ]
+}

@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0f4c81" />
+    <title>A-share-LI 主板观察池</title>
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="stylesheet" href="assets/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">A-share-LI</p>
+        <h1>主板 Serenity 观察池</h1>
+      </div>
+      <button id="installButton" class="ghost-button" hidden>安装</button>
+    </header>
+
+    <main>
+      <section class="summary-band" aria-live="polite">
+        <div>
+          <span class="label">数据日期</span>
+          <strong id="asOfDate">加载中</strong>
+        </div>
+        <div>
+          <span class="label">股票数量</span>
+          <strong id="poolCount">-</strong>
+        </div>
+        <div>
+          <span class="label">当前判断</span>
+          <strong id="overallSignal">-</strong>
+        </div>
+      </section>
+
+      <section class="notice">
+        <strong>使用边界：</strong>
+        这是研究观察池，不是自动买卖指令。真正下单前，请复核实时行情、公告、财报和个人仓位。
+      </section>
+
+      <nav class="tabs" aria-label="筛选观察状态">
+        <button class="tab active" data-filter="all">全部</button>
+        <button class="tab" data-filter="watch">观察区</button>
+        <button class="tab" data-filter="wait">等回踩</button>
+        <button class="tab" data-filter="avoid">不追高</button>
+      </nav>
+
+      <section id="stockList" class="stock-list"></section>
+
+      <section class="model-panel">
+        <h2>模型思路</h2>
+        <p id="modelDescription">长期趋势确认 → 产业链瓶颈 → 供需验证 → 低关注度/错定价 → 催化剂 → 估值重估。</p>
+        <div id="sourceStatus" class="source-status"></div>
+      </section>
+    </main>
+
+    <template id="stockCardTemplate">
+      <article class="stock-card">
+        <button class="card-head" type="button">
+          <span>
+            <strong class="stock-name"></strong>
+            <em class="stock-code"></em>
+          </span>
+          <span class="status-pill"></span>
+        </button>
+        <div class="metrics">
+          <div><span>收盘价</span><strong class="close-price"></strong></div>
+          <div><span>观察区间</span><strong class="watch-zone"></strong></div>
+          <div><span>不追高线</span><strong class="no-chase"></strong></div>
+          <div><span>评分</span><strong class="score"></strong></div>
+        </div>
+        <div class="detail" hidden>
+          <p class="logic"></p>
+          <dl>
+            <div><dt>产业链位置</dt><dd class="theme"></dd></div>
+            <div><dt>价格触发</dt><dd class="trigger"></dd></div>
+            <div><dt>仓位提示</dt><dd class="position"></dd></div>
+            <div><dt>主要催化</dt><dd class="catalysts"></dd></div>
+            <div><dt>主要风险</dt><dd class="risks"></dd></div>
+          </dl>
+        </div>
+      </article>
+    </template>
+
+    <script src="assets/app.js" type="module"></script>
+  </body>
+</html>

@@ -1,0 +1,296 @@
+:root {
+  color-scheme: light;
+  --bg: #f5f7fb;
+  --panel: #ffffff;
+  --text: #132238;
+  --muted: #617089;
+  --brand: #0f4c81;
+  --brand-soft: #e8f2fb;
+  --green: #138a52;
+  --yellow: #9b6a00;
+  --red: #b42318;
+  --line: #d9e2ef;
+  --shadow: 0 10px 24px rgba(15, 76, 129, 0.08);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+}
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 18px 14px;
+  background: rgba(245, 247, 251, 0.94);
+  border-bottom: 1px solid var(--line);
+  backdrop-filter: blur(10px);
+}
+
+.eyebrow {
+  margin: 0 0 4px;
+  color: var(--brand);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+h1,
+h2,
+p {
+  margin: 0;
+}
+
+h1 {
+  font-size: 24px;
+  line-height: 1.2;
+}
+
+main {
+  width: min(960px, 100%);
+  margin: 0 auto;
+  padding: 16px;
+}
+
+.ghost-button {
+  border: 1px solid var(--brand);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--brand);
+  padding: 8px 12px;
+  font-weight: 700;
+}
+
+.summary-band {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.summary-band > div,
+.notice,
+.model-panel,
+.stock-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+}
+
+.summary-band > div {
+  padding: 14px;
+}
+
+.label,
+.metrics span {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+.summary-band strong {
+  font-size: 18px;
+}
+
+.notice {
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  color: #31445d;
+  line-height: 1.55;
+}
+
+.tabs {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin: 8px 0 14px;
+}
+
+.tab {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--muted);
+  padding: 10px 6px;
+  font-weight: 700;
+}
+
+.tab.active {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: #ffffff;
+}
+
+.stock-list {
+  display: grid;
+  gap: 12px;
+}
+
+.stock-card {
+  overflow: hidden;
+}
+
+.card-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+
+.stock-name {
+  display: block;
+  font-size: 18px;
+}
+
+.stock-code {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-style: normal;
+}
+
+.status-pill {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: var(--brand-soft);
+  color: var(--brand);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.status-watch {
+  background: #e9f8ef;
+  color: var(--green);
+}
+
+.status-wait {
+  background: #fff4d6;
+  color: var(--yellow);
+}
+
+.status-avoid {
+  background: #fdecec;
+  color: var(--red);
+}
+
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--line);
+  border-top: 1px solid var(--line);
+}
+
+.metrics > div {
+  min-width: 0;
+  background: #fbfdff;
+  padding: 12px 10px;
+}
+
+.metrics strong {
+  display: block;
+  word-break: break-word;
+}
+
+.detail {
+  border-top: 1px solid var(--line);
+  padding: 14px;
+}
+
+.logic {
+  color: #263b54;
+  line-height: 1.65;
+  margin-bottom: 12px;
+}
+
+dl {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+}
+
+dl div {
+  display: grid;
+  grid-template-columns: 86px 1fr;
+  gap: 10px;
+}
+
+dt {
+  color: var(--muted);
+  font-weight: 700;
+}
+
+dd {
+  margin: 0;
+  line-height: 1.55;
+}
+
+.model-panel {
+  margin-top: 16px;
+  padding: 16px;
+}
+
+.model-panel h2 {
+  font-size: 18px;
+  margin-bottom: 8px;
+}
+
+.model-panel p,
+.source-status {
+  color: #31445d;
+  line-height: 1.6;
+}
+
+.source-status {
+  margin-top: 10px;
+  font-size: 13px;
+}
+
+@media (max-width: 700px) {
+  .topbar {
+    padding: 14px 14px 12px;
+  }
+
+  h1 {
+    font-size: 21px;
+  }
+
+  main {
+    padding: 12px;
+  }
+
+  .summary-band {
+    grid-template-columns: 1fr;
+  }
+
+  .metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  dl div {
+    grid-template-columns: 1fr;
+    gap: 3px;
+  }
+}
