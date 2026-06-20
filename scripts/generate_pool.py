@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import math
+import subprocess
 from dataclasses import dataclass, asdict
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
@@ -481,9 +482,65 @@ def build_tracking_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def load_existing_review_records() -> list[dict[str, Any]]:
+    records_by_code: dict[str, dict[str, Any]] = {}
+
+    def absorb(raw: bytes | str) -> None:
+        try:
+            text = raw.decode("utf-8") if isinstance(raw, bytes) else raw
+            data = json.loads(text)
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            return
+        for record in data.get("records", []):
+            code = record.get("code")
+            if code:
+                records_by_code[code] = record
+
+    if REVIEW_PATH.exists():
+        try:
+            absorb(REVIEW_PATH.read_text(encoding="utf-8"))
+        except OSError:
+            pass
+
+    try:
+        absorb(subprocess.check_output(["git", "show", "HEAD:data/review.json"], cwd=ROOT, stderr=subprocess.DEVNULL))
+    except Exception:
+        pass
+
+    return list(records_by_code.values())
+
+
 def build_review_center(rows: list[dict[str, Any]], as_of_date: str) -> dict[str, Any]:
     current_by_code = {row["code"]: row for row in rows}
     entries_by_code: dict[str, dict[str, dict[str, Any]]] = {}
+
+    for record in load_existing_review_records():
+        code = record.get("code")
+        if not code:
+            continue
+        entries_by_code.setdefault(code, {})
+        first_price = safe_float(record.get("first_recommend_price"))
+        if record.get("first_recommend_date") and first_price is not None:
+            entries_by_code[code][str(record["first_recommend_date"])] = {
+                "date": str(record["first_recommend_date"]),
+                "close": first_price,
+                "rank": record.get("first_rank"),
+                "status_key": record.get("first_status_key"),
+                "name": record.get("name"),
+                "theme": record.get("theme"),
+                "board": record.get("board"),
+            }
+        latest_price = safe_float(record.get("latest_price"))
+        if record.get("latest_date") and latest_price is not None:
+            entries_by_code[code][str(record["latest_date"])] = {
+                "date": str(record["latest_date"]),
+                "close": latest_price,
+                "rank": record.get("last_seen_rank"),
+                "status_key": record.get("current_status_key"),
+                "name": record.get("name"),
+                "theme": record.get("theme"),
+                "board": record.get("board"),
+            }
 
     for snapshot in load_history_snapshots():
         snapshot_date = snapshot.get("as_of_date")
@@ -749,6 +806,8 @@ def analyze_candidate(candidate: Candidate) -> dict[str, Any]:
 
     no_chase = max(aggressive * 1.08, ma20 + atr14 * 1.2)
     invalid = min(ma60 * 0.92, latest_close - atr14 * 3.0)
+    recommended_entry = stable + (aggressive - stable) * 0.4
+    entry_gap_pct = (latest_close / recommended_entry - 1) * 100 if recommended_entry else None
 
     overheat_penalty = 0.0
     risk_notes = list(candidate.risks)
@@ -772,16 +831,19 @@ def analyze_candidate(candidate: Candidate) -> dict[str, Any]:
         intervention_status = "观察区"
         position_hint = "可进入观察清单，只适合小仓位分批验证。"
         trigger = "价格落入观察区间后，等待缩量企稳或重新放量确认。"
+        entry_note = "已进入观察区，接入价仅作为分批纪律参考，仍需看量价确认。"
     elif latest_close > no_chase:
         status_key = "avoid"
         intervention_status = "不追高"
         position_hint = "价格高于不追高线，等待涨幅和换手降温。"
         trigger = "先等待回到观察区间，避免把长期逻辑变成短线追涨。"
+        entry_note = "当前高于不追高线，不按现价追入；等回落到推荐接入价附近再复核。"
     else:
         status_key = "wait"
         intervention_status = "等回踩"
         position_hint = "暂以观察为主，等价格接近观察区间再考虑。"
         trigger = "接近观察区间且产业链证据未变弱时，再重新评估。"
+        entry_note = "当前未到理想接入位置，优先等待价格回落到推荐接入价附近。"
 
     return {
         "code": candidate.code,
@@ -798,6 +860,11 @@ def analyze_candidate(candidate: Candidate) -> dict[str, Any]:
         "volatility20": round_or_none(volatility20),
         "aggressive_price": round_or_none(aggressive),
         "stable_price": round_or_none(stable),
+        "recommended_entry_price": round_or_none(recommended_entry),
+        "entry_price_lower": round_or_none(stable),
+        "entry_price_upper": round_or_none(aggressive),
+        "entry_gap_pct": round_or_none(entry_gap_pct),
+        "entry_price_note": entry_note,
         "watch_zone": f"{stable:.2f}-{aggressive:.2f}",
         "no_chase_price": round_or_none(no_chase),
         "invalid_price": round_or_none(invalid),
