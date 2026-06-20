@@ -186,6 +186,11 @@ main {
   color: var(--green);
 }
 
+.status-breakout {
+  background: #e8f2fb;
+  color: var(--brand);
+}
+
 .status-wait {
   background: #fff4d6;
   color: var(--yellow);
@@ -198,7 +203,7 @@ main {
 
 .metrics {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 1px;
   background: var(--line);
   border-top: 1px solid var(--line);

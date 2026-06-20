@@ -6,6 +6,7 @@ const state = {
 
 const statusMap = {
   watch: { label: "观察区", className: "status-watch" },
+  breakout: { label: "突破确认", className: "status-breakout" },
   wait: { label: "等回踩", className: "status-wait" },
   avoid: { label: "不追高", className: "status-avoid" },
 };
@@ -99,6 +100,7 @@ function createStockCard(stock) {
   node.querySelector(".status-pill").classList.add(status.className);
   node.querySelector(".close-price").textContent = formatNumber(stock.close);
   node.querySelector(".entry-price").textContent = formatNumber(stock.recommended_entry_price);
+  node.querySelector(".breakout-price").textContent = formatNumber(stock.breakout_confirm_price);
   node.querySelector(".watch-zone").textContent = stock.watch_zone || "-";
   node.querySelector(".no-chase").textContent = formatNumber(stock.no_chase_price);
   node.querySelector(".tracking-return").textContent = formatPercent(trackingReturn);
@@ -111,6 +113,8 @@ function createStockCard(stock) {
     : `未进入全主板快照初筛，来源：${stock.candidate_source || "-"}`;
   node.querySelector(".entry-detail").textContent =
     `推荐接入价 ${formatNumber(stock.recommended_entry_price)}，接入区间 ${formatNumber(stock.entry_price_lower)}-${formatNumber(stock.entry_price_upper)}，现价偏离 ${formatPercent(stock.entry_gap_pct)}。${stock.entry_price_note || ""}`;
+  node.querySelector(".breakout-detail").textContent =
+    `突破确认价 ${formatNumber(stock.breakout_confirm_price)}，前高压力 ${formatNumber(stock.resistance_price)}，距现价 ${formatPercent(stock.breakout_gap_pct)}。${stock.breakout_price_note || ""}`;
   node.querySelector(".first-recommend").textContent = tracking.first_recommend_date
     ? `${tracking.first_recommend_date}，首次价 ${formatNumber(tracking.first_recommend_price)}，已回访 ${tracking.tracking_days ?? 0} 天`
     : "等待下一次自动刷新后开始记录";

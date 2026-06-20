@@ -785,6 +785,8 @@ def analyze_candidate(candidate: Candidate) -> dict[str, Any]:
     ma60 = float(close.tail(60).mean()) if len(close) >= 60 else ma20
     high20 = float(high.tail(20).max())
     low20 = float(low.tail(20).min())
+    previous_high_window = high.iloc[-21:-1] if len(high) > 1 else high.tail(1)
+    previous_high20 = float(previous_high_window.max()) if not previous_high_window.empty else high20
     pct60 = (latest_close / float(close.iloc[-60]) - 1) * 100 if len(close) >= 60 else None
 
     prev_close = close.shift(1)
@@ -804,7 +806,9 @@ def analyze_candidate(candidate: Candidate) -> dict[str, Any]:
     if stable > aggressive:
         stable = aggressive * 0.94
 
-    no_chase = max(aggressive * 1.08, ma20 + atr14 * 1.2)
+    breakout_confirm = max(previous_high20 * 1.01, ma20 + atr14 * 0.6)
+    breakout_gap_pct = (breakout_confirm / latest_close - 1) * 100 if latest_close else None
+    no_chase = max(aggressive * 1.08, breakout_confirm * 1.05, ma20 + atr14 * 1.8)
     invalid = min(ma60 * 0.92, latest_close - atr14 * 3.0)
     recommended_entry = stable + (aggressive - stable) * 0.4
     entry_gap_pct = (latest_close / recommended_entry - 1) * 100 if recommended_entry else None
@@ -826,24 +830,34 @@ def analyze_candidate(candidate: Candidate) -> dict[str, Any]:
 
     score = max(0.0, candidate.base_score - overheat_penalty)
 
-    if latest_close <= aggressive and latest_close >= invalid:
+    if latest_close > no_chase:
+        status_key = "avoid"
+        intervention_status = "不追高"
+        position_hint = "价格高于不追高线，等待涨幅和换手降温。"
+        trigger = "先等待回到观察区间，或重新形成新的平台后再复核突破价。"
+        entry_note = "当前高于不追高线，不按现价追入；等回落到推荐接入价附近再复核。"
+        breakout_note = "突破已经偏离合理追踪区，不把突破当成追高理由。"
+    elif latest_close >= breakout_confirm and latest_close >= ma20:
+        status_key = "breakout"
+        intervention_status = "突破确认"
+        position_hint = "只适合小仓位试探，后续必须用不跌回突破价和成交量延续来验证。"
+        trigger = "已站上突破确认价；若回踩不破突破价且量能不明显萎缩，可继续观察强趋势接入。"
+        entry_note = "未给出理想回撤，但价格已触发突破路径；回撤接入价仍作为更稳健的加仓纪律。"
+        breakout_note = "突破路径已触发，重点看收盘能否守住突破价，以及次日是否放量/缩量不破。"
+    elif latest_close <= aggressive and latest_close >= invalid:
         status_key = "watch"
         intervention_status = "观察区"
         position_hint = "可进入观察清单，只适合小仓位分批验证。"
         trigger = "价格落入观察区间后，等待缩量企稳或重新放量确认。"
         entry_note = "已进入观察区，接入价仅作为分批纪律参考，仍需看量价确认。"
-    elif latest_close > no_chase:
-        status_key = "avoid"
-        intervention_status = "不追高"
-        position_hint = "价格高于不追高线，等待涨幅和换手降温。"
-        trigger = "先等待回到观察区间，避免把长期逻辑变成短线追涨。"
-        entry_note = "当前高于不追高线，不按现价追入；等回落到推荐接入价附近再复核。"
+        breakout_note = "尚未触发突破路径；若放量站上突破确认价，可按强趋势路径重新评估。"
     else:
         status_key = "wait"
         intervention_status = "等回踩"
         position_hint = "暂以观察为主，等价格接近观察区间再考虑。"
         trigger = "接近观察区间且产业链证据未变弱时，再重新评估。"
         entry_note = "当前未到理想接入位置，优先等待价格回落到推荐接入价附近。"
+        breakout_note = "若不回踩而直接站上突破确认价，可转入小仓位突破验证路径。"
 
     return {
         "code": candidate.code,
@@ -865,6 +879,10 @@ def analyze_candidate(candidate: Candidate) -> dict[str, Any]:
         "entry_price_upper": round_or_none(aggressive),
         "entry_gap_pct": round_or_none(entry_gap_pct),
         "entry_price_note": entry_note,
+        "breakout_confirm_price": round_or_none(breakout_confirm),
+        "breakout_gap_pct": round_or_none(breakout_gap_pct),
+        "breakout_price_note": breakout_note,
+        "resistance_price": round_or_none(previous_high20),
         "watch_zone": f"{stable:.2f}-{aggressive:.2f}",
         "no_chase_price": round_or_none(no_chase),
         "invalid_price": round_or_none(invalid),
@@ -928,11 +946,14 @@ def build_payload() -> dict[str, Any]:
     counts = {
         "total": len(rows),
         "watch": sum(1 for row in rows if row["status_key"] == "watch"),
+        "breakout": sum(1 for row in rows if row["status_key"] == "breakout"),
         "wait": sum(1 for row in rows if row["status_key"] == "wait"),
         "avoid": sum(1 for row in rows if row["status_key"] == "avoid"),
     }
     if counts["watch"]:
         overall_signal = "有少量标的进入观察区"
+    elif counts["breakout"]:
+        overall_signal = "部分标的进入突破确认"
     elif counts["avoid"] >= len(rows) / 2:
         overall_signal = "整体偏热，谨慎追高"
     else:
@@ -951,7 +972,7 @@ def build_payload() -> dict[str, Any]:
         },
         "model": {
             "name": "Two-layer Serenity main-board screen",
-            "description": "第一层扫描全A股主板的趋势、动量和流动性；第二层再做产业链瓶颈、供需验证、催化剂和估值重估筛选。",
+            "description": "第一层扫描全A股主板的趋势、动量和流动性；第二层再做产业链瓶颈、供需验证、催化剂和估值重估筛选；价格纪律拆成回撤接入和突破确认两条路径。",
             "board_filter": "000/001/002/003/600/601/603/605",
             "universe_layer": "全主板行情快照粗筛",
             "serenity_layer": "战略主题库 + 产业链瓶颈深度打分",
