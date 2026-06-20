@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0",
-  "generated_at": "2026-06-20T13:44:05+08:00",
+  "generated_at": "2026-06-20T13:53:49+08:00",
   "as_of_date": "2026-06-18",
   "summary": {
     "tracked_count": 10,
@@ -46,7 +46,8 @@
       "worst_close": 177.55,
       "worst_date": "2026-06-18",
       "review_status": "当前池中-继续观察",
-      "comment": "仍在最新推荐池中，表现暂处于验证区间。"
+      "comment": "仍在最新推荐池中，表现暂处于验证区间。",
+      "review_rank": 1
     },
     {
       "code": "002156",
@@ -73,7 +74,8 @@
       "worst_close": 68.27,
       "worst_date": "2026-06-18",
       "review_status": "当前池中-继续观察",
-      "comment": "仍在最新推荐池中，表现暂处于验证区间。"
+      "comment": "仍在最新推荐池中，表现暂处于验证区间。",
+      "review_rank": 2
     },
     {
       "code": "002185",
@@ -100,7 +102,8 @@
       "worst_close": 19.61,
       "worst_date": "2026-06-18",
       "review_status": "当前池中-继续观察",
-      "comment": "仍在最新推荐池中，表现暂处于验证区间。"
+      "comment": "仍在最新推荐池中，表现暂处于验证区间。",
+      "review_rank": 3
     },
     {
       "code": "002371",
@@ -127,7 +130,8 @@
       "worst_close": 721.04,
       "worst_date": "2026-06-18",
       "review_status": "当前池中-继续观察",
-      "comment": "仍在最新推荐池中，表现暂处于验证区间。"
+      "comment": "仍在最新推荐池中，表现暂处于验证区间。",
+      "review_rank": 4
     },
     {
       "code": "002409",
@@ -154,7 +158,8 @@
       "worst_close": 150.16,
       "worst_date": "2026-06-18",
       "review_status": "当前池中-继续观察",
-      "comment": "仍在最新推荐池中，表现暂处于验证区间。"
+      "comment": "仍在最新推荐池中，表现暂处于验证区间。",
+      "review_rank": 5
     },
     {
       "code": "002463",
@@ -181,7 +186,8 @@
       "worst_close": 147.9,
       "worst_date": "2026-06-18",
       "review_status": "当前池中-继续观察",
-      "comment": "仍在最新推荐池中，表现暂处于验证区间。"
+      "comment": "仍在最新推荐池中，表现暂处于验证区间。",
+      "review_rank": 6
     },
     {
       "code": "002916",
@@ -208,7 +214,8 @@
       "worst_close": 453.8,
       "worst_date": "2026-06-18",
       "review_status": "当前池中-继续观察",
-      "comment": "仍在最新推荐池中，表现暂处于验证区间。"
+      "comment": "仍在最新推荐池中，表现暂处于验证区间。",
+      "review_rank": 7
     },
     {
       "code": "600584",
@@ -235,7 +242,8 @@
       "worst_close": 83.03,
       "worst_date": "2026-06-18",
       "review_status": "当前池中-继续观察",
-      "comment": "仍在最新推荐池中，表现暂处于验证区间。"
+      "comment": "仍在最新推荐池中，表现暂处于验证区间。",
+      "review_rank": 8
     },
     {
       "code": "601138",
@@ -262,7 +270,8 @@
       "worst_close": 78.08,
       "worst_date": "2026-06-18",
       "review_status": "当前池中-继续观察",
-      "comment": "仍在最新推荐池中，表现暂处于验证区间。"
+      "comment": "仍在最新推荐池中，表现暂处于验证区间。",
+      "review_rank": 9
     },
     {
       "code": "603228",
@@ -289,7 +298,8 @@
       "worst_close": 81.06,
       "worst_date": "2026-06-18",
       "review_status": "当前池中-继续观察",
-      "comment": "仍在最新推荐池中，表现暂处于验证区间。"
+      "comment": "仍在最新推荐池中，表现暂处于验证区间。",
+      "review_rank": 10
     }
   ]
 }

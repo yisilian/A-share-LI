@@ -124,7 +124,12 @@ function createStockCard(stock) {
 function renderReviewCenter() {
   const review = state.review;
   const list = byId("reviewList");
-  const records = review?.records || [];
+  const records = [...(review?.records || [])].sort((a, b) => {
+    const aReturn = Number.isFinite(Number(a.return_since_first_pct)) ? Number(a.return_since_first_pct) : -Infinity;
+    const bReturn = Number.isFinite(Number(b.return_since_first_pct)) ? Number(b.return_since_first_pct) : -Infinity;
+    if (bReturn !== aReturn) return bReturn - aReturn;
+    return String(a.code).localeCompare(String(b.code));
+  });
   byId("reviewCount").textContent = `${records.length} 条`;
   list.innerHTML = "";
 
@@ -133,8 +138,8 @@ function renderReviewCenter() {
     return;
   }
 
-  records.forEach((record) => {
-    list.appendChild(createReviewRow(record));
+  records.forEach((record, index) => {
+    list.appendChild(createReviewRow({ ...record, display_rank: index + 1 }));
   });
 }
 
@@ -144,7 +149,7 @@ function createReviewRow(record) {
   const reviewReturn = record.return_since_first_pct;
 
   node.querySelector(".review-name").textContent = record.name || record.code;
-  node.querySelector(".review-code").textContent = `${record.code} · ${record.active_in_current_pool ? "当前池中" : "已调出"}`;
+  node.querySelector(".review-code").textContent = `#${record.display_rank || record.review_rank || "-"} · ${record.code} · ${record.active_in_current_pool ? "当前池中" : "已调出"}`;
   node.querySelector(".review-return").textContent = formatPercent(reviewReturn);
   node.querySelector(".review-return").classList.add(returnClass(reviewReturn));
   node.querySelector(".review-first").textContent = `${record.first_recommend_date || "-"} / ${formatNumber(record.first_recommend_price)}`;

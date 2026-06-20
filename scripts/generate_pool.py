@@ -446,11 +446,13 @@ def build_review_center(rows: list[dict[str, Any]], as_of_date: str) -> dict[str
 
     records.sort(
         key=lambda record: (
-            not record["active_in_current_pool"],
+            record.get("return_since_first_pct") is None,
             -(record.get("return_since_first_pct") or 0),
             record["code"],
         )
     )
+    for index, record in enumerate(records, start=1):
+        record["review_rank"] = index
 
     return {
         "schema_version": "1.0",
