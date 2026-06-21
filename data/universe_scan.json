@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0",
-  "generated_at": "2026-06-21T14:25:53+08:00",
+  "generated_at": "2026-06-21T19:38:04+08:00",
   "source": "akshare.stock_zh_a_spot / Sina",
   "scope": "全A股主板",
   "raw_count": 5527,
@@ -19,7 +19,7 @@
     ],
     "record_count": 5188,
     "warnings": [
-      "资金流Eastmoney-today获取失败：502 Server Error: Bad Gateway for url: https://push2.eastmoney.com/api/qt/clist/get?fid=f62&po=1&pz=500&pn=4&np=1&fltt=2&invt=2&ut=b2884a393a59ad64002292a3e90d46a5&fs=m%3A0%2Bt%3A6...",
+      "资金流Eastmoney-today获取失败：502 Server Error: Bad Gateway for url: https://push2.eastmoney.com/api/qt/clist/get?fid=f62&po=1&pz=500&pn=1&np=1&fltt=2&invt=2&ut=b2884a393a59ad64002292a3e90d46a5&fs=m%3A0%2Bt%3A6...",
       "资金流Eastmoney-5d获取失败：502 Server Error: Bad Gateway for url: https://push2.eastmoney.com/api/qt/clist/get?fid=f164&po=1&pz=500&pn=1&np=1&fltt=2&invt=2&ut=b2884a393a59ad64002292a3e90d46a5&fs=m%3A0%2Bt%3A..."
     ],
     "note": "资金流用于确认趋势质量，不单独构成买卖依据。"
