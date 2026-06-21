@@ -150,7 +150,7 @@ def clamp(value: float, lower: float, upper: float) -> float:
 def normalize_code(value: Any) -> str:
     text = str(value or "").strip()
     digits = "".join(ch for ch in text if ch.isdigit())
-    return digits[-6:] if len(digits) >= 6 else digits
+    return digits[-6:].zfill(6) if digits else digits
 
 
 def is_mainboard_code(code: str) -> bool:
@@ -179,6 +179,22 @@ def fund_flow_label(score: Any) -> str:
 def compact_error(error: Exception, limit: int = 180) -> str:
     text = str(error).replace("\n", " ").strip()
     return text if len(text) <= limit else text[:limit].rstrip() + "..."
+
+
+def parse_cn_money(value: Any) -> float | None:
+    if value is None or pd.isna(value):
+        return None
+    text = str(value).replace(",", "").strip()
+    if not text or text in {"-", "--", "nan"}:
+        return None
+    multiplier = 1.0
+    if "亿" in text:
+        multiplier = 100_000_000.0
+    elif "万" in text:
+        multiplier = 10_000.0
+    text = text.replace("亿元", "").replace("万元", "").replace("元", "").replace("亿", "").replace("万", "").replace("%", "")
+    number = safe_float(text)
+    return number * multiplier if number is not None else None
 
 
 def empty_fund_flow_meta() -> dict[str, Any]:
@@ -291,21 +307,108 @@ def fetch_fund_flow_rank(horizon: str) -> dict[str, dict[str, Any]]:
     return result
 
 
+def ths_fund_headers() -> dict[str, str]:
+    from akshare.stock_feature import stock_fund_flow as ths_mod
+
+    js_code = ths_mod.py_mini_racer.MiniRacer()
+    js_code.eval(ths_mod._get_file_content_ths("ths.js"))
+    v_code = js_code.call("v")
+    return {
+        "Accept": "text/html, */*; q=0.01",
+        "Accept-Encoding": "gzip, deflate",
+        "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+        "hexin-v": v_code,
+        "Host": "data.10jqka.com.cn",
+        "Pragma": "no-cache",
+        "Referer": "http://data.10jqka.com.cn/funds/hyzjl/",
+        "User-Agent": "Mozilla/5.0",
+        "X-Requested-With": "XMLHttpRequest",
+    }
+
+
+def fetch_ths_fund_flow_rank(horizon: str) -> dict[str, dict[str, Any]]:
+    from bs4 import BeautifulSoup
+    from io import StringIO
+
+    url_map = {
+        "today": "http://data.10jqka.com.cn/funds/ggzjl/field/zdf/order/desc/page/{}/ajax/1/free/1/",
+        "5d": "http://data.10jqka.com.cn/funds/ggzjl/board/5/field/zdf/order/desc/page/{}/ajax/1/free/1/",
+    }
+    url_template = url_map[horizon]
+    first = requests.get(url_template.format(1), headers=ths_fund_headers(), timeout=20)
+    first.raise_for_status()
+    soup = BeautifulSoup(first.text, features="lxml")
+    page_info = soup.find(name="span", attrs={"class": "page_info"})
+    total_pages = int(page_info.text.split("/")[1]) if page_info and "/" in page_info.text else 1
+    frames = []
+    for page in range(1, total_pages + 1):
+        if page == 1:
+            text = first.text
+        else:
+            response = requests.get(url_template.format(page), headers=ths_fund_headers(), timeout=20)
+            response.raise_for_status()
+            text = response.text
+        tables = pd.read_html(StringIO(text))
+        if tables:
+            frames.append(tables[0])
+
+    if not frames:
+        raise RuntimeError("Tonghuashun fund flow returned no tables")
+
+    df = pd.concat(frames, ignore_index=True)
+    result: dict[str, dict[str, Any]] = {}
+    for index, row in df.iterrows():
+        code = normalize_code(row.get("股票代码"))
+        if not code:
+            continue
+        record = result.setdefault(
+            code,
+            {
+                "name": row.get("股票简称"),
+                "fund_flow_source": "Tonghuashun",
+            },
+        )
+        if horizon == "today":
+            net = parse_cn_money(row.get("净额(元)"))
+            amount = parse_cn_money(row.get("成交额(元)"))
+            record["fund_today_main_net"] = net
+            record["fund_today_main_net_pct"] = (net / amount * 100) if net is not None and amount else None
+            record["today_rank"] = int(index + 1)
+        else:
+            record["fund_5d_main_net"] = parse_cn_money(row.get("资金流入净额(元)"))
+            record["five_day_rank"] = int(index + 1)
+    return result
+
+
 def fetch_market_fund_flow() -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
     warnings: list[str] = []
-    merged: dict[str, dict[str, Any]] = {}
-    fetched: list[str] = []
-    for horizon in ("today", "5d"):
-        try:
-            records = fetch_fund_flow_rank(horizon)
-            fetched.append(horizon)
-            for code, record in records.items():
-                merged.setdefault(code, {}).update(record)
-        except Exception as exc:
-            warnings.append(f"资金流{horizon}获取失败：{compact_error(exc)}")
+    provider = "Eastmoney"
+
+    def collect(fetcher, provider_name: str) -> tuple[dict[str, dict[str, Any]], list[str], list[str]]:
+        provider_warnings: list[str] = []
+        provider_merged: dict[str, dict[str, Any]] = {}
+        provider_fetched: list[str] = []
+        for horizon in ("today", "5d"):
+            try:
+                records = fetcher(horizon)
+                provider_fetched.append(horizon)
+                for code, record in records.items():
+                    provider_merged.setdefault(code, {}).update(record)
+            except Exception as exc:
+                provider_warnings.append(f"资金流{provider_name}-{horizon}获取失败：{compact_error(exc)}")
+        return provider_merged, provider_fetched, provider_warnings
+
+    merged, fetched, eastmoney_warnings = collect(fetch_fund_flow_rank, "Eastmoney")
+    warnings.extend(eastmoney_warnings)
+    if not merged:
+        provider = "Tonghuashun"
+        merged, fetched, ths_warnings = collect(fetch_ths_fund_flow_rank, "Tonghuashun")
+        warnings.extend(ths_warnings)
 
     return merged, {
-        "source": "Eastmoney push2 fund flow",
+        "source": provider,
         "available": bool(merged),
         "fetched_horizons": fetched,
         "record_count": len(merged),
@@ -356,17 +459,21 @@ def build_universe_scan(candidate_library: list[Candidate]) -> tuple[dict[str, d
         mainboard["fund_today_main_net_pct"].notna()
         | mainboard["fund_5d_main_net_pct"].notna()
         | mainboard["fund_today_main_net"].notna()
+        | mainboard["fund_5d_main_net"].notna()
     )
     today_pct_base = mainboard["fund_today_main_net_pct"].fillna(mainboard["fund_today_main_net_pct"].median()).fillna(0)
     five_pct_base = mainboard["fund_5d_main_net_pct"].fillna(mainboard["fund_5d_main_net_pct"].median()).fillna(0)
     today_net_base = mainboard["fund_today_main_net"].fillna(mainboard["fund_today_main_net"].median()).fillna(0)
+    five_net_base = mainboard["fund_5d_main_net"].fillna(mainboard["fund_5d_main_net"].median()).fillna(0)
     fund_today_pct_rank = percentile_rank(today_pct_base)
     fund_five_pct_rank = percentile_rank(five_pct_base)
     fund_net_rank = percentile_rank(today_net_base)
+    fund_five_net_rank = percentile_rank(five_net_base)
     fund_score = (
-        (fund_today_pct_rank - 0.5) * 14
-        + (fund_five_pct_rank - 0.5) * 10
-        + (fund_net_rank - 0.5) * 6
+        (fund_today_pct_rank - 0.5) * 10
+        + (fund_five_pct_rank - 0.5) * 6
+        + (fund_net_rank - 0.5) * 7
+        + (fund_five_net_rank - 0.5) * 7
     ).where(fund_available, 0).clip(-15, 15)
     mainboard["fund_flow_score"] = fund_score.round(2)
     mainboard["fund_flow_label"] = mainboard["fund_flow_score"].map(fund_flow_label)
@@ -1253,7 +1360,7 @@ def build_payload() -> dict[str, Any]:
         "as_of_date": as_of_date,
         "market": "A股主板",
         "source_status": {
-            "quotes": "akshare.stock_zh_a_spot + stock_zh_a_daily / Sina + Eastmoney fund flow",
+            "quotes": "akshare.stock_zh_a_spot + stock_zh_a_daily / Sina + Eastmoney/Tonghuashun fund flow",
             "fallback": False,
             "note": "免费数据源可能延迟或限流；关键决策请复核实时行情。",
             "warnings": errors,
