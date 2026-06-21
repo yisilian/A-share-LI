@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0",
-  "generated_at": "2026-06-21T14:06:45+08:00",
+  "generated_at": "2026-06-21T14:12:03+08:00",
   "as_of_date": "2026-06-18",
   "market": "A股主板",
   "source_status": {
@@ -8,8 +8,8 @@
     "fallback": false,
     "note": "免费数据源可能延迟或限流；关键决策请复核实时行情。",
     "warnings": [
-      "资金流today获取失败：HTTPSConnectionPool(host='push2.eastmoney.com', port=443): Max retries exceeded with url: /api/qt/clist/get?fid=f62&po=1&pz=500&pn=1&np=1&fltt=2&invt=2&ut=b2884a393a59ad64002292a3e...",
-      "资金流5d获取失败：HTTPSConnectionPool(host='push2.eastmoney.com', port=443): Max retries exceeded with url: /api/qt/clist/get?fid=f164&po=1&pz=500&pn=1&np=1&fltt=2&invt=2&ut=b2884a393a59ad64002292a3..."
+      "资金流today获取失败：502 Server Error: Bad Gateway for url: https://push2.eastmoney.com/api/qt/clist/get?fid=f62&po=1&pz=500&pn=1&np=1&fltt=2&invt=2&ut=b2884a393a59ad64002292a3e90d46a5&fs=m%3A0%2Bt%3A6...",
+      "资金流5d获取失败：502 Server Error: Bad Gateway for url: https://push2.eastmoney.com/api/qt/clist/get?fid=f164&po=1&pz=500&pn=1&np=1&fltt=2&invt=2&ut=b2884a393a59ad64002292a3e90d46a5&fs=m%3A0%2Bt%3A..."
     ]
   },
   "model": {
@@ -873,7 +873,7 @@
   },
   "universe_scan": {
     "schema_version": "1.0",
-    "generated_at": "2026-06-21T14:06:21+08:00",
+    "generated_at": "2026-06-21T14:11:12+08:00",
     "source": "akshare.stock_zh_a_spot / Sina",
     "scope": "全A股主板",
     "raw_count": 5527,
@@ -889,8 +889,8 @@
       "fetched_horizons": [],
       "record_count": 0,
       "warnings": [
-        "资金流today获取失败：HTTPSConnectionPool(host='push2.eastmoney.com', port=443): Max retries exceeded with url: /api/qt/clist/get?fid=f62&po=1&pz=500&pn=1&np=1&fltt=2&invt=2&ut=b2884a393a59ad64002292a3e...",
-        "资金流5d获取失败：HTTPSConnectionPool(host='push2.eastmoney.com', port=443): Max retries exceeded with url: /api/qt/clist/get?fid=f164&po=1&pz=500&pn=1&np=1&fltt=2&invt=2&ut=b2884a393a59ad64002292a3..."
+        "资金流today获取失败：502 Server Error: Bad Gateway for url: https://push2.eastmoney.com/api/qt/clist/get?fid=f62&po=1&pz=500&pn=1&np=1&fltt=2&invt=2&ut=b2884a393a59ad64002292a3e90d46a5&fs=m%3A0%2Bt%3A6...",
+        "资金流5d获取失败：502 Server Error: Bad Gateway for url: https://push2.eastmoney.com/api/qt/clist/get?fid=f164&po=1&pz=500&pn=1&np=1&fltt=2&invt=2&ut=b2884a393a59ad64002292a3e90d46a5&fs=m%3A0%2Bt%3A..."
       ],
       "note": "资金流用于确认趋势质量，不单独构成买卖依据。"
     },
@@ -3990,7 +3990,7 @@
   },
   "review": {
     "schema_version": "1.0",
-    "generated_at": "2026-06-21T14:06:45+08:00",
+    "generated_at": "2026-06-21T14:12:03+08:00",
     "as_of_date": "2026-06-18",
     "summary": {
       "tracked_count": 16,
