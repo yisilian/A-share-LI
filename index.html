@@ -48,6 +48,7 @@
 
       <nav class="tabs" aria-label="筛选观察状态">
         <button class="tab active" data-filter="all">全部</button>
+        <button class="tab" data-filter="buyable">可买入</button>
         <button class="tab" data-filter="watch">观察区</button>
         <button class="tab" data-filter="breakout">突破确认</button>
         <button class="tab" data-filter="wait">等回踩</button>
@@ -85,6 +86,8 @@
         </button>
         <div class="metrics">
           <div><span>收盘价</span><strong class="close-price"></strong></div>
+          <div><span>买入信号</span><strong class="buy-signal"></strong></div>
+          <div><span>可买价</span><strong class="buy-price"></strong></div>
           <div><span>接入价</span><strong class="entry-price"></strong></div>
           <div><span>突破价</span><strong class="breakout-price"></strong></div>
           <div><span>观察区间</span><strong class="watch-zone"></strong></div>
@@ -97,6 +100,7 @@
           <dl>
             <div><dt>产业链位置</dt><dd class="theme"></dd></div>
             <div><dt>第一层初筛</dt><dd class="layer-one"></dd></div>
+            <div><dt>买入观察</dt><dd class="buy-detail"></dd></div>
             <div><dt>接入纪律</dt><dd class="entry-detail"></dd></div>
             <div><dt>突破纪律</dt><dd class="breakout-detail"></dd></div>
             <div><dt>首次推荐</dt><dd class="first-recommend"></dd></div>

@@ -812,6 +812,9 @@ def analyze_candidate(candidate: Candidate) -> dict[str, Any]:
     invalid = min(ma60 * 0.92, latest_close - atr14 * 3.0)
     recommended_entry = stable + (aggressive - stable) * 0.4
     entry_gap_pct = (latest_close / recommended_entry - 1) * 100 if recommended_entry else None
+    pullback_buy_lower = max(stable, invalid)
+    pullback_buy_upper = aggressive
+    breakout_buy_upper = min(no_chase, breakout_confirm * 1.025, breakout_confirm + atr14 * 0.8)
 
     overheat_penalty = 0.0
     risk_notes = list(candidate.risks)
@@ -859,6 +862,64 @@ def analyze_candidate(candidate: Candidate) -> dict[str, Any]:
         entry_note = "当前未到理想接入位置，优先等待价格回落到推荐接入价附近。"
         breakout_note = "若不回踩而直接站上突破确认价，可转入小仓位突破验证路径。"
 
+    buy_signal_key = "wait"
+    buy_signal_label = "等待触发"
+    is_buyable_now = False
+    buyable_price = None
+    buyable_lower = None
+    buyable_upper = None
+    next_buy_price = None
+    buy_price_path = "等待"
+    buy_price_note = "当前没有触发可买入观察信号，只保留跟踪。"
+
+    if status_key == "watch":
+        buy_signal_key = "pullback_buy"
+        buy_signal_label = "可小仓低吸"
+        is_buyable_now = True
+        buyable_price = pullback_buy_upper
+        buyable_lower = pullback_buy_lower
+        buyable_upper = pullback_buy_upper
+        next_buy_price = buyable_price
+        buy_price_path = "回撤接入"
+        buy_price_note = "价格已落入回撤观察区，研究口径允许小仓位分批验证；理想价靠近推荐接入价，最高不超过可买价。"
+    elif status_key == "breakout":
+        if latest_close <= breakout_buy_upper:
+            buy_signal_key = "breakout_buy"
+            buy_signal_label = "可突破试探"
+            is_buyable_now = True
+            buyable_price = breakout_buy_upper
+            buyable_lower = breakout_confirm
+            buyable_upper = breakout_buy_upper
+            next_buy_price = breakout_confirm
+            buy_price_path = "突破确认"
+            buy_price_note = "价格已站上突破确认价但未明显追高，只适合小仓位试探；后续必须用不跌回突破价和量能延续验证。"
+        else:
+            buy_signal_key = "breakout_wait"
+            buy_signal_label = "突破偏高"
+            buyable_price = None
+            buyable_lower = breakout_confirm
+            buyable_upper = breakout_buy_upper
+            next_buy_price = breakout_buy_upper
+            buy_price_path = "等突破回踩"
+            buy_price_note = "已经突破但偏离可接受上限，等待回踩到突破可买区间再复核。"
+    elif status_key == "avoid":
+        buy_signal_key = "avoid"
+        buy_signal_label = "不可追高"
+        next_buy_price = pullback_buy_upper
+        buy_price_path = "等降温回撤"
+        buy_price_note = "价格高于不追高线，不给当前可买价；优先等回撤到观察区间上沿以内。"
+    else:
+        pullback_gap = abs(latest_close / pullback_buy_upper - 1) if pullback_buy_upper else float("inf")
+        breakout_gap = abs(breakout_confirm / latest_close - 1) if breakout_confirm >= latest_close else float("inf")
+        if breakout_gap < pullback_gap:
+            next_buy_price = breakout_confirm
+            buy_price_path = "等突破确认"
+            buy_price_note = "当前未触发买入观察信号；若放量站上突破确认价，可转入突破试探路径。"
+        else:
+            next_buy_price = pullback_buy_upper
+            buy_price_path = "等回撤接入"
+            buy_price_note = "当前未触发买入观察信号；优先等待回撤到观察区间上沿以内。"
+
     return {
         "code": candidate.code,
         "name": candidate.name,
@@ -880,9 +941,19 @@ def analyze_candidate(candidate: Candidate) -> dict[str, Any]:
         "entry_gap_pct": round_or_none(entry_gap_pct),
         "entry_price_note": entry_note,
         "breakout_confirm_price": round_or_none(breakout_confirm),
+        "breakout_buy_upper_price": round_or_none(breakout_buy_upper),
         "breakout_gap_pct": round_or_none(breakout_gap_pct),
         "breakout_price_note": breakout_note,
         "resistance_price": round_or_none(previous_high20),
+        "is_buyable_now": is_buyable_now,
+        "buy_signal_key": buy_signal_key,
+        "buy_signal_label": buy_signal_label,
+        "buyable_price": round_or_none(buyable_price),
+        "buyable_price_lower": round_or_none(buyable_lower),
+        "buyable_price_upper": round_or_none(buyable_upper),
+        "next_buy_trigger_price": round_or_none(next_buy_price),
+        "buy_price_path": buy_price_path,
+        "buy_price_note": buy_price_note,
         "watch_zone": f"{stable:.2f}-{aggressive:.2f}",
         "no_chase_price": round_or_none(no_chase),
         "invalid_price": round_or_none(invalid),
@@ -949,8 +1020,13 @@ def build_payload() -> dict[str, Any]:
         "breakout": sum(1 for row in rows if row["status_key"] == "breakout"),
         "wait": sum(1 for row in rows if row["status_key"] == "wait"),
         "avoid": sum(1 for row in rows if row["status_key"] == "avoid"),
+        "buyable": sum(1 for row in rows if row.get("is_buyable_now")),
+        "buyable_pullback": sum(1 for row in rows if row.get("buy_signal_key") == "pullback_buy"),
+        "buyable_breakout": sum(1 for row in rows if row.get("buy_signal_key") == "breakout_buy"),
     }
-    if counts["watch"]:
+    if counts["buyable"]:
+        overall_signal = f"{counts['buyable']}只触发可买入观察信号"
+    elif counts["watch"]:
         overall_signal = "有少量标的进入观察区"
     elif counts["breakout"]:
         overall_signal = "部分标的进入突破确认"

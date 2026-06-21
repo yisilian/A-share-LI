@@ -30,6 +30,18 @@ const returnClass = (value) => {
   return "return-flat";
 };
 
+const buySignalClass = (key) => {
+  if (key === "pullback_buy" || key === "breakout_buy") return "buy-now";
+  if (key === "avoid") return "buy-avoid";
+  return "buy-wait";
+};
+
+const formatBuyPrice = (stock) => {
+  if (stock.is_buyable_now) return formatNumber(stock.buyable_price);
+  const nextPrice = formatNumber(stock.next_buy_trigger_price);
+  return nextPrice === "-" ? "未触发" : `待 ${nextPrice}`;
+};
+
 const byId = (id) => document.getElementById(id);
 
 async function loadPool() {
@@ -70,6 +82,7 @@ function render() {
 
   const stocks = (data.stocks || []).filter((stock) => {
     if (state.filter === "all") return true;
+    if (state.filter === "buyable") return Boolean(stock.is_buyable_now);
     return stock.status_key === state.filter;
   });
 
@@ -99,6 +112,9 @@ function createStockCard(stock) {
   node.querySelector(".status-pill").textContent = status.label;
   node.querySelector(".status-pill").classList.add(status.className);
   node.querySelector(".close-price").textContent = formatNumber(stock.close);
+  node.querySelector(".buy-signal").textContent = stock.buy_signal_label || "等待触发";
+  node.querySelector(".buy-signal").classList.add(buySignalClass(stock.buy_signal_key));
+  node.querySelector(".buy-price").textContent = formatBuyPrice(stock);
   node.querySelector(".entry-price").textContent = formatNumber(stock.recommended_entry_price);
   node.querySelector(".breakout-price").textContent = formatNumber(stock.breakout_confirm_price);
   node.querySelector(".watch-zone").textContent = stock.watch_zone || "-";
@@ -111,6 +127,10 @@ function createStockCard(stock) {
   node.querySelector(".layer-one").textContent = stock.layer_one_rank
     ? `全主板第 ${stock.layer_one_rank} 名，初筛分 ${formatNumber(stock.layer_one_score)}，当日涨跌 ${formatPercent(stock.layer_one_pct_chg)}，来源：${stock.candidate_source || "-"}`
     : `未进入全主板快照初筛，来源：${stock.candidate_source || "-"}`;
+  node.querySelector(".buy-detail").textContent =
+    stock.is_buyable_now
+      ? `${stock.buy_signal_label || "可买入观察"}：路径 ${stock.buy_price_path || "-"}，可买价 ${formatNumber(stock.buyable_price)}，可买区间 ${formatNumber(stock.buyable_price_lower)}-${formatNumber(stock.buyable_price_upper)}。${stock.buy_price_note || ""}`
+      : `${stock.buy_signal_label || "等待触发"}：下一触发价 ${formatNumber(stock.next_buy_trigger_price)}，路径 ${stock.buy_price_path || "-"}。${stock.buy_price_note || ""}`;
   node.querySelector(".entry-detail").textContent =
     `推荐接入价 ${formatNumber(stock.recommended_entry_price)}，接入区间 ${formatNumber(stock.entry_price_lower)}-${formatNumber(stock.entry_price_upper)}，现价偏离 ${formatPercent(stock.entry_gap_pct)}。${stock.entry_price_note || ""}`;
   node.querySelector(".breakout-detail").textContent =

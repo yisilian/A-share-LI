@@ -203,7 +203,7 @@ main {
 
 .metrics {
   display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-template-columns: repeat(9, minmax(0, 1fr));
   gap: 1px;
   background: var(--line);
   border-top: 1px solid var(--line);
@@ -218,6 +218,18 @@ main {
 .metrics strong {
   display: block;
   word-break: break-word;
+}
+
+.buy-now {
+  color: var(--green);
+}
+
+.buy-wait {
+  color: var(--yellow);
+}
+
+.buy-avoid {
+  color: var(--red);
 }
 
 .detail {
