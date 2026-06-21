@@ -2,6 +2,12 @@ name: Update A-share pool
 
 on:
   workflow_dispatch:
+  push:
+    branches: ["main"]
+    paths:
+      - "scripts/generate_pool.py"
+      - "requirements.txt"
+      - ".github/workflows/update-data.yml"
   schedule:
     - cron: "30 10 * * 1-5"
 

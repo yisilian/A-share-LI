@@ -23,6 +23,11 @@ const formatPercent = (value, digits = 2) => {
   return `${sign}${number.toFixed(digits)}%`;
 };
 
+const formatMoney = (value) => {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) return "-";
+  return `${(Number(value) / 100000000).toFixed(2)}亿`;
+};
+
 const returnClass = (value) => {
   if (value === null || value === undefined || Number.isNaN(Number(value))) return "return-flat";
   if (Number(value) > 0) return "return-positive";
@@ -40,6 +45,13 @@ const formatBuyPrice = (stock) => {
   if (stock.is_buyable_now) return formatNumber(stock.buyable_price);
   const nextPrice = formatNumber(stock.next_buy_trigger_price);
   return nextPrice === "-" ? "未触发" : `待 ${nextPrice}`;
+};
+
+const fundFlowClass = (score) => {
+  if (score === null || score === undefined || Number.isNaN(Number(score))) return "fund-neutral";
+  if (Number(score) >= 3) return "fund-positive";
+  if (Number(score) <= -3) return "fund-negative";
+  return "fund-neutral";
 };
 
 const byId = (id) => document.getElementById(id);
@@ -115,6 +127,8 @@ function createStockCard(stock) {
   node.querySelector(".buy-signal").textContent = stock.buy_signal_label || "等待触发";
   node.querySelector(".buy-signal").classList.add(buySignalClass(stock.buy_signal_key));
   node.querySelector(".buy-price").textContent = formatBuyPrice(stock);
+  node.querySelector(".fund-flow").textContent = stock.fund_flow_label || "资金流暂缺";
+  node.querySelector(".fund-flow").classList.add(fundFlowClass(stock.fund_flow_score));
   node.querySelector(".entry-price").textContent = formatNumber(stock.recommended_entry_price);
   node.querySelector(".breakout-price").textContent = formatNumber(stock.breakout_confirm_price);
   node.querySelector(".watch-zone").textContent = stock.watch_zone || "-";
@@ -131,6 +145,8 @@ function createStockCard(stock) {
     stock.is_buyable_now
       ? `${stock.buy_signal_label || "可买入观察"}：路径 ${stock.buy_price_path || "-"}，可买价 ${formatNumber(stock.buyable_price)}，可买区间 ${formatNumber(stock.buyable_price_lower)}-${formatNumber(stock.buyable_price_upper)}。${stock.buy_price_note || ""}`
       : `${stock.buy_signal_label || "等待触发"}：下一触发价 ${formatNumber(stock.next_buy_trigger_price)}，路径 ${stock.buy_price_path || "-"}。${stock.buy_price_note || ""}`;
+  node.querySelector(".fund-detail").textContent =
+    `${stock.fund_flow_label || "资金流暂缺"}：今日主力 ${formatMoney(stock.fund_today_main_net)} / ${formatPercent(stock.fund_today_main_net_pct)}，5日主力 ${formatMoney(stock.fund_5d_main_net)} / ${formatPercent(stock.fund_5d_main_net_pct)}，资金分 ${formatNumber(stock.fund_flow_score)}，模型加减分 ${formatNumber(stock.fund_flow_bonus)}。资金流只作趋势质量验证。`;
   node.querySelector(".entry-detail").textContent =
     `推荐接入价 ${formatNumber(stock.recommended_entry_price)}，接入区间 ${formatNumber(stock.entry_price_lower)}-${formatNumber(stock.entry_price_upper)}，现价偏离 ${formatPercent(stock.entry_gap_pct)}。${stock.entry_price_note || ""}`;
   node.querySelector(".breakout-detail").textContent =

@@ -10,6 +10,7 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+import requests
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -23,6 +24,19 @@ FINAL_POOL_SIZE = 10
 DEEP_ANALYSIS_LIMIT = 28
 UNIVERSE_EXPORT_LIMIT = 120
 MAINBOARD_PREFIXES = ("000", "001", "002", "003", "600", "601", "603", "605")
+EASTMONEY_FUND_FLOW_URL = "https://push2.eastmoney.com/api/qt/clist/get"
+EASTMONEY_FUND_FLOW_FS = "m:0+t:6+f:!2,m:0+t:13+f:!2,m:0+t:80+f:!2,m:1+t:2+f:!2,m:1+t:23+f:!2,m:0+t:7+f:!2,m:1+t:3+f:!2"
+FUND_FLOW_KEYS = [
+    "fund_today_main_net",
+    "fund_today_main_net_pct",
+    "fund_5d_main_net",
+    "fund_5d_main_net_pct",
+    "fund_flow_score",
+    "fund_flow_rank",
+    "fund_flow_label",
+    "fund_flow_bonus",
+    "fund_flow_source",
+]
 
 
 @dataclass(frozen=True)
@@ -115,7 +129,7 @@ def ak_symbol(code: str) -> str:
 
 def safe_float(value: Any) -> float | None:
     try:
-        if value is None or (isinstance(value, float) and math.isnan(value)):
+        if value is None or pd.isna(value):
             return None
         return float(value)
     except (TypeError, ValueError):
@@ -127,6 +141,10 @@ def round_or_none(value: Any, digits: int = 2) -> float | None:
     if value is None:
         return None
     return round(value, digits)
+
+
+def clamp(value: float, lower: float, upper: float) -> float:
+    return max(lower, min(upper, value))
 
 
 def normalize_code(value: Any) -> str:
@@ -143,9 +161,163 @@ def percentile_rank(series: pd.Series) -> pd.Series:
     return series.rank(method="average", pct=True).fillna(0.0)
 
 
+def fund_flow_label(score: Any) -> str:
+    value = safe_float(score)
+    if value is None:
+        return "资金流暂缺"
+    if value >= 10:
+        return "资金明显流入"
+    if value >= 3:
+        return "资金温和流入"
+    if value <= -10:
+        return "资金明显流出"
+    if value <= -3:
+        return "资金偏流出"
+    return "资金中性"
+
+
+def compact_error(error: Exception, limit: int = 180) -> str:
+    text = str(error).replace("\n", " ").strip()
+    return text if len(text) <= limit else text[:limit].rstrip() + "..."
+
+
+def empty_fund_flow_meta() -> dict[str, Any]:
+    return {key: None for key in FUND_FLOW_KEYS}
+
+
+def fund_meta_from_record(record: dict[str, Any] | None) -> dict[str, Any]:
+    if not record:
+        return empty_fund_flow_meta()
+    return {
+        "fund_today_main_net": round_or_none(record.get("fund_today_main_net"), 0),
+        "fund_today_main_net_pct": round_or_none(record.get("fund_today_main_net_pct")),
+        "fund_5d_main_net": round_or_none(record.get("fund_5d_main_net"), 0),
+        "fund_5d_main_net_pct": round_or_none(record.get("fund_5d_main_net_pct")),
+        "fund_flow_score": round_or_none(record.get("fund_flow_score")),
+        "fund_flow_rank": int(record["fund_flow_rank"]) if safe_float(record.get("fund_flow_rank")) is not None else None,
+        "fund_flow_label": record.get("fund_flow_label") if isinstance(record.get("fund_flow_label"), str) else None,
+        "fund_flow_bonus": round_or_none(record.get("fund_flow_bonus")),
+        "fund_flow_source": record.get("fund_flow_source") if isinstance(record.get("fund_flow_source"), str) else None,
+    }
+
+
+def eastmoney_fund_request(params: dict[str, str]) -> dict[str, Any]:
+    headers = {
+        "User-Agent": "Mozilla/5.0",
+        "Referer": "https://data.eastmoney.com/zjlx/detail.html",
+    }
+    last_error: Exception | None = None
+    request_modes = (
+        {"proxies": {"http": "", "https": ""}},
+        {},
+    )
+    for mode in request_modes:
+        for _ in range(2):
+            try:
+                response = requests.get(
+                    EASTMONEY_FUND_FLOW_URL,
+                    params=params,
+                    headers=headers,
+                    timeout=20,
+                    **mode,
+                )
+                response.raise_for_status()
+                data = response.json()
+                if not data.get("data"):
+                    raise RuntimeError("Eastmoney fund flow returned empty data")
+                return data
+            except Exception as exc:  # free endpoints can be rate-limited or proxy-sensitive
+                last_error = exc
+    raise RuntimeError(str(last_error) if last_error else "Eastmoney fund flow request failed")
+
+
+def fetch_fund_flow_rank(horizon: str) -> dict[str, dict[str, Any]]:
+    configs = {
+        "today": {
+            "fid": "f62",
+            "fields": "f12,f14,f2,f3,f62,f184,f124",
+            "net": "f62",
+            "pct": "f184",
+            "chg": "f3",
+            "net_key": "fund_today_main_net",
+            "pct_key": "fund_today_main_net_pct",
+        },
+        "5d": {
+            "fid": "f164",
+            "fields": "f12,f14,f2,f109,f164,f165,f124",
+            "net": "f164",
+            "pct": "f165",
+            "chg": "f109",
+            "net_key": "fund_5d_main_net",
+            "pct_key": "fund_5d_main_net_pct",
+        },
+    }
+    config = configs[horizon]
+    page_size = 500
+    params = {
+        "fid": config["fid"],
+        "po": "1",
+        "pz": str(page_size),
+        "pn": "1",
+        "np": "1",
+        "fltt": "2",
+        "invt": "2",
+        "ut": "b2884a393a59ad64002292a3e90d46a5",
+        "fs": EASTMONEY_FUND_FLOW_FS,
+        "fields": config["fields"],
+    }
+    first_page = eastmoney_fund_request(params)
+    total = int(first_page["data"].get("total") or 0)
+    total_pages = max(1, math.ceil(total / page_size))
+    rows = list(first_page["data"].get("diff") or [])
+    for page in range(2, total_pages + 1):
+        params["pn"] = str(page)
+        rows.extend(eastmoney_fund_request(params)["data"].get("diff") or [])
+
+    result: dict[str, dict[str, Any]] = {}
+    for rank, item in enumerate(rows, start=1):
+        code = normalize_code(item.get("f12"))
+        if not code:
+            continue
+        result[code] = {
+            "name": item.get("f14"),
+            "rank": rank,
+            "price": safe_float(item.get("f2")),
+            "pct_chg": safe_float(item.get(config["chg"])),
+            config["net_key"]: safe_float(item.get(config["net"])),
+            config["pct_key"]: safe_float(item.get(config["pct"])),
+            "fund_flow_source": "Eastmoney",
+        }
+    return result
+
+
+def fetch_market_fund_flow() -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
+    warnings: list[str] = []
+    merged: dict[str, dict[str, Any]] = {}
+    fetched: list[str] = []
+    for horizon in ("today", "5d"):
+        try:
+            records = fetch_fund_flow_rank(horizon)
+            fetched.append(horizon)
+            for code, record in records.items():
+                merged.setdefault(code, {}).update(record)
+        except Exception as exc:
+            warnings.append(f"资金流{horizon}获取失败：{compact_error(exc)}")
+
+    return merged, {
+        "source": "Eastmoney push2 fund flow",
+        "available": bool(merged),
+        "fetched_horizons": fetched,
+        "record_count": len(merged),
+        "warnings": warnings,
+        "note": "资金流用于确认趋势质量，不单独构成买卖依据。",
+    }
+
+
 def build_universe_scan(candidate_library: list[Candidate]) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
     import akshare as ak
 
+    fund_flow_by_code, fund_flow_payload = fetch_market_fund_flow()
     df = ak.stock_zh_a_spot()
     if df.empty:
         raise RuntimeError("stock_zh_a_spot returned empty data")
@@ -174,6 +346,35 @@ def build_universe_scan(candidate_library: list[Candidate]) -> tuple[dict[str, d
     momentum_rank = percentile_rank(mainboard["pct_chg"])
     liquidity_rank = percentile_rank(mainboard["amount"])
     position_rank = percentile_rank(intraday_position)
+    for key in FUND_FLOW_KEYS:
+        mainboard[key] = mainboard["code"].map(lambda code, field=key: fund_flow_by_code.get(code, {}).get(field))
+    mainboard["fund_today_main_net"] = pd.to_numeric(mainboard["fund_today_main_net"], errors="coerce")
+    mainboard["fund_today_main_net_pct"] = pd.to_numeric(mainboard["fund_today_main_net_pct"], errors="coerce")
+    mainboard["fund_5d_main_net"] = pd.to_numeric(mainboard["fund_5d_main_net"], errors="coerce")
+    mainboard["fund_5d_main_net_pct"] = pd.to_numeric(mainboard["fund_5d_main_net_pct"], errors="coerce")
+    fund_available = (
+        mainboard["fund_today_main_net_pct"].notna()
+        | mainboard["fund_5d_main_net_pct"].notna()
+        | mainboard["fund_today_main_net"].notna()
+    )
+    today_pct_base = mainboard["fund_today_main_net_pct"].fillna(mainboard["fund_today_main_net_pct"].median()).fillna(0)
+    five_pct_base = mainboard["fund_5d_main_net_pct"].fillna(mainboard["fund_5d_main_net_pct"].median()).fillna(0)
+    today_net_base = mainboard["fund_today_main_net"].fillna(mainboard["fund_today_main_net"].median()).fillna(0)
+    fund_today_pct_rank = percentile_rank(today_pct_base)
+    fund_five_pct_rank = percentile_rank(five_pct_base)
+    fund_net_rank = percentile_rank(today_net_base)
+    fund_score = (
+        (fund_today_pct_rank - 0.5) * 14
+        + (fund_five_pct_rank - 0.5) * 10
+        + (fund_net_rank - 0.5) * 6
+    ).where(fund_available, 0).clip(-15, 15)
+    mainboard["fund_flow_score"] = fund_score.round(2)
+    mainboard["fund_flow_label"] = mainboard["fund_flow_score"].map(fund_flow_label)
+    mainboard.loc[~fund_available, "fund_flow_label"] = "资金流暂缺"
+    mainboard["fund_flow_rank"] = mainboard["fund_flow_score"].rank(ascending=False, method="min").where(fund_available)
+    mainboard["fund_flow_bonus"] = mainboard["fund_flow_score"].map(
+        lambda value: round_or_none(clamp(float(value) / 20, -0.7, 0.8))
+    )
     heat_penalty = (mainboard["pct_chg"] - 7.5).clip(lower=0).fillna(0) * 4
     weak_penalty = (-mainboard["pct_chg"]).clip(lower=0).fillna(0) * 1.2
 
@@ -181,6 +382,7 @@ def build_universe_scan(candidate_library: list[Candidate]) -> tuple[dict[str, d
         momentum_rank * 48
         + liquidity_rank * 34
         + position_rank * 18
+        + mainboard["fund_flow_score"]
         - heat_penalty
         - weak_penalty
     ).round(2)
@@ -197,6 +399,7 @@ def build_universe_scan(candidate_library: list[Candidate]) -> tuple[dict[str, d
             "amount": round_or_none(row.amount, 0),
             "layer_one_score": round_or_none(row.layer_one_score),
             "layer_one_rank": int(row.layer_one_rank),
+            **fund_meta_from_record(row._asdict()),
         }
 
     library_codes = {candidate.code for candidate in candidate_library}
@@ -210,6 +413,7 @@ def build_universe_scan(candidate_library: list[Candidate]) -> tuple[dict[str, d
             "pct_chg": round_or_none(row.pct_chg),
             "amount": round_or_none(row.amount, 0),
             "layer_one_score": round_or_none(row.layer_one_score),
+            **fund_meta_from_record(row._asdict()),
         }
         for row in mainboard.head(UNIVERSE_EXPORT_LIMIT).itertuples(index=False)
     ]
@@ -226,6 +430,7 @@ def build_universe_scan(candidate_library: list[Candidate]) -> tuple[dict[str, d
         "shortlist_limit": DEEP_ANALYSIS_LIMIT,
         "export_limit": UNIVERSE_EXPORT_LIMIT,
         "note": "第一层扫描全主板行情快照，第二层只对可解释战略主题库中的入围标的做深度打分。",
+        "fund_flow": fund_flow_payload,
         "top_mainboard": top_mainboard,
         "matched_library": sorted(matched, key=lambda item: item["layer_one_rank"])[:UNIVERSE_EXPORT_LIMIT],
     }
@@ -246,6 +451,7 @@ def select_candidates_from_universe(candidate_library: list[Candidate]) -> tuple
                 "layer_one_pct_chg": None,
                 "layer_one_amount": None,
                 "layer_one_bonus": 0.0,
+                **empty_fund_flow_meta(),
             }
             for candidate in candidate_library[:DEEP_ANALYSIS_LIMIT]
         }
@@ -265,6 +471,7 @@ def select_candidates_from_universe(candidate_library: list[Candidate]) -> tuple
             "matched_library": [],
         }
         return candidate_library[:DEEP_ANALYSIS_LIMIT], fallback_meta, universe_payload, warnings
+    warnings.extend(universe_payload.get("fund_flow", {}).get("warnings", []))
 
     scored: list[tuple[float, Candidate]] = []
     meta_by_code: dict[str, dict[str, Any]] = {}
@@ -281,6 +488,7 @@ def select_candidates_from_universe(candidate_library: list[Candidate]) -> tuple
             "layer_one_pct_chg": scan.get("pct_chg"),
             "layer_one_amount": scan.get("amount"),
             "layer_one_bonus": round_or_none(min(2.2, first_layer_score / 100 * 2.2)),
+            **fund_meta_from_record(scan),
         }
         scored.append((combined_score, candidate))
 
@@ -297,6 +505,7 @@ def select_candidates_from_universe(candidate_library: list[Candidate]) -> tuple
                 "layer_one_pct_chg": None,
                 "layer_one_amount": None,
                 "layer_one_bonus": 0.0,
+                **empty_fund_flow_meta(),
             }
             scored.append((candidate.base_score * 7, candidate))
             if len(scored) >= DEEP_ANALYSIS_LIMIT:
@@ -992,12 +1201,15 @@ def build_payload() -> dict[str, Any]:
             row = analyze_candidate(candidate)
             meta = candidate_meta.get(candidate.code, {})
             layer_one_bonus = safe_float(meta.get("layer_one_bonus")) or 0.0
-            row["score"] = round(row["score"] + layer_one_bonus, 1)
+            fund_flow_bonus = safe_float(meta.get("fund_flow_bonus")) or 0.0
+            row["score"] = round(row["score"] + layer_one_bonus + fund_flow_bonus, 1)
             row["candidate_source"] = meta.get("candidate_source") or "主题库"
             row["layer_one_score"] = meta.get("layer_one_score")
             row["layer_one_rank"] = meta.get("layer_one_rank")
             row["layer_one_pct_chg"] = meta.get("layer_one_pct_chg")
             row["layer_one_amount"] = meta.get("layer_one_amount")
+            for key in FUND_FLOW_KEYS:
+                row[key] = meta.get(key)
             rows.append(row)
         except Exception as exc:  # network/free data sources are not always stable
             errors.append(f"{candidate.code} {candidate.name}: {exc}")
@@ -1041,14 +1253,14 @@ def build_payload() -> dict[str, Any]:
         "as_of_date": as_of_date,
         "market": "A股主板",
         "source_status": {
-            "quotes": "akshare.stock_zh_a_spot + stock_zh_a_daily / Sina",
+            "quotes": "akshare.stock_zh_a_spot + stock_zh_a_daily / Sina + Eastmoney fund flow",
             "fallback": False,
             "note": "免费数据源可能延迟或限流；关键决策请复核实时行情。",
             "warnings": errors,
         },
         "model": {
             "name": "Two-layer Serenity main-board screen",
-            "description": "第一层扫描全A股主板的趋势、动量和流动性；第二层再做产业链瓶颈、供需验证、催化剂和估值重估筛选；价格纪律拆成回撤接入和突破确认两条路径。",
+            "description": "第一层扫描全A股主板的趋势、动量、流动性和主力资金流；第二层再做产业链瓶颈、供需验证、催化剂和估值重估筛选；价格纪律拆成回撤接入和突破确认两条路径。",
             "board_filter": "000/001/002/003/600/601/603/605",
             "universe_layer": "全主板行情快照粗筛",
             "serenity_layer": "战略主题库 + 产业链瓶颈深度打分",
@@ -1064,14 +1276,14 @@ def build_payload() -> dict[str, Any]:
 def write_payload(payload: dict[str, Any]) -> None:
     DATA_DIR.mkdir(exist_ok=True)
     HISTORY_DIR.mkdir(exist_ok=True)
-    text = json.dumps(payload, ensure_ascii=False, indent=2)
+    text = json.dumps(payload, ensure_ascii=False, indent=2, allow_nan=False)
     LATEST_PATH.write_text(text + "\n", encoding="utf-8")
     review_payload = payload.get("review")
     if isinstance(review_payload, dict):
-        REVIEW_PATH.write_text(json.dumps(review_payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        REVIEW_PATH.write_text(json.dumps(review_payload, ensure_ascii=False, indent=2, allow_nan=False) + "\n", encoding="utf-8")
     universe_payload = payload.get("universe_scan")
     if isinstance(universe_payload, dict):
-        UNIVERSE_PATH.write_text(json.dumps(universe_payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        UNIVERSE_PATH.write_text(json.dumps(universe_payload, ensure_ascii=False, indent=2, allow_nan=False) + "\n", encoding="utf-8")
     history_path = HISTORY_DIR / f"{payload['as_of_date']}.json"
     history_path.write_text(text + "\n", encoding="utf-8")
 
