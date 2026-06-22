@@ -54,6 +54,13 @@ const fundFlowClass = (score) => {
   return "fund-neutral";
 };
 
+const chipClass = (score) => {
+  if (score === null || score === undefined || Number.isNaN(Number(score))) return "chip-neutral";
+  if (Number(score) >= 0.4) return "chip-positive";
+  if (Number(score) <= -0.3) return "chip-negative";
+  return "chip-neutral";
+};
+
 const byId = (id) => document.getElementById(id);
 
 async function loadPool() {
@@ -129,6 +136,8 @@ function createStockCard(stock) {
   node.querySelector(".buy-price").textContent = formatBuyPrice(stock);
   node.querySelector(".fund-flow").textContent = stock.fund_flow_label || "资金流暂缺";
   node.querySelector(".fund-flow").classList.add(fundFlowClass(stock.fund_flow_score));
+  node.querySelector(".chip-status").textContent = stock.chip_label || "筹码暂缺";
+  node.querySelector(".chip-status").classList.add(chipClass(stock.chip_score));
   node.querySelector(".entry-price").textContent = formatNumber(stock.recommended_entry_price);
   node.querySelector(".breakout-price").textContent = formatNumber(stock.breakout_confirm_price);
   node.querySelector(".watch-zone").textContent = stock.watch_zone || "-";
@@ -147,6 +156,8 @@ function createStockCard(stock) {
       : `${stock.buy_signal_label || "等待触发"}：下一触发价 ${formatNumber(stock.next_buy_trigger_price)}，路径 ${stock.buy_price_path || "-"}。${stock.buy_price_note || ""}`;
   node.querySelector(".fund-detail").textContent =
     `${stock.fund_flow_label || "资金流暂缺"}：今日主力 ${formatMoney(stock.fund_today_main_net)} / ${formatPercent(stock.fund_today_main_net_pct)}，5日主力 ${formatMoney(stock.fund_5d_main_net)} / ${formatPercent(stock.fund_5d_main_net_pct)}，资金分 ${formatNumber(stock.fund_flow_score)}，模型加减分 ${formatNumber(stock.fund_flow_bonus)}。资金流只作趋势质量验证。`;
+  node.querySelector(".chip-detail").textContent =
+    `${stock.chip_label || "筹码暂缺"}：获利比例 ${formatPercent(stock.chip_profit_ratio)}，平均成本 ${formatNumber(stock.chip_avg_cost)}，现价偏离平均成本 ${formatPercent(stock.chip_cost_gap_pct)}，70%集中度 ${formatPercent(stock.chip_concentration_70)}，90%集中度 ${formatPercent(stock.chip_concentration_90)}，筹码分 ${formatNumber(stock.chip_score)}，模型加减分 ${formatNumber(stock.chip_bonus)}。${stock.chip_note || "筹码只作成本结构与兑现压力验证。"} 来源：${stock.chip_source || "-"}。`;
   node.querySelector(".entry-detail").textContent =
     `推荐接入价 ${formatNumber(stock.recommended_entry_price)}，接入区间 ${formatNumber(stock.entry_price_lower)}-${formatNumber(stock.entry_price_upper)}，现价偏离 ${formatPercent(stock.entry_gap_pct)}。${stock.entry_price_note || ""}`;
   node.querySelector(".breakout-detail").textContent =

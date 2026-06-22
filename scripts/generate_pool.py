@@ -40,6 +40,19 @@ FUND_FLOW_KEYS = [
     "fund_flow_bonus",
     "fund_flow_source",
 ]
+CHIP_KEYS = [
+    "chip_profit_ratio",
+    "chip_avg_cost",
+    "chip_cost_gap_pct",
+    "chip_concentration_70",
+    "chip_concentration_90",
+    "chip_score",
+    "chip_label",
+    "chip_bonus",
+    "chip_source",
+    "chip_date",
+    "chip_note",
+]
 
 
 @dataclass(frozen=True)
@@ -236,6 +249,207 @@ def fund_meta_from_record(record: dict[str, Any] | None) -> dict[str, Any]:
         "fund_flow_label": record.get("fund_flow_label") if isinstance(record.get("fund_flow_label"), str) else None,
         "fund_flow_bonus": round_or_none(record.get("fund_flow_bonus")),
         "fund_flow_source": record.get("fund_flow_source") if isinstance(record.get("fund_flow_source"), str) else None,
+    }
+
+
+def empty_chip_meta() -> dict[str, Any]:
+    meta = {key: None for key in CHIP_KEYS}
+    meta["chip_label"] = "筹码暂缺"
+    meta["chip_bonus"] = 0.0
+    meta["chip_note"] = "筹码数据暂缺，未参与本轮加减分。"
+    return meta
+
+
+def chip_label(score: Any) -> str:
+    value = safe_float(score)
+    if value is None:
+        return "筹码暂缺"
+    if value >= 1.4:
+        return "筹码较健康"
+    if value >= 0.4:
+        return "筹码中性偏好"
+    if value <= -1.2:
+        return "筹码压力较大"
+    if value <= -0.3:
+        return "筹码略有压力"
+    return "筹码中性"
+
+
+def score_chip_structure(profit_ratio: Any, cost_gap_pct: Any, concentration_70: Any) -> tuple[float, str]:
+    profit = safe_float(profit_ratio)
+    gap = safe_float(cost_gap_pct)
+    concentration = safe_float(concentration_70)
+    score = 0.0
+    notes: list[str] = []
+
+    if profit is not None:
+        if 35 <= profit <= 75:
+            score += 0.8
+            notes.append("获利盘处于较健康区间")
+        elif 25 <= profit < 35 or 75 < profit <= 85:
+            score += 0.2
+            notes.append("获利盘接近中性")
+        elif profit > 90:
+            score -= 1.0
+            notes.append("获利盘过高，兑现压力上升")
+        elif profit < 20:
+            score -= 0.8
+            notes.append("套牢盘偏重")
+
+    if gap is not None:
+        if -3 <= gap <= 12:
+            score += 0.8
+            notes.append("现价贴近平均成本")
+        elif 12 < gap <= 25:
+            score += 0.1
+            notes.append("现价略高于平均成本")
+        elif gap > 35:
+            score -= 0.8
+            notes.append("现价显著高于平均成本")
+        elif gap < -10:
+            score -= 0.6
+            notes.append("现价明显低于平均成本")
+
+    if concentration is not None:
+        if concentration <= 12:
+            score += 0.6
+            notes.append("70%成本区较集中")
+        elif concentration <= 22:
+            score += 0.2
+            notes.append("70%成本区中等集中")
+        elif concentration > 35:
+            score -= 0.5
+            notes.append("成本分布偏松散")
+
+    if not notes:
+        notes.append("筹码指标不足")
+    return round(clamp(score, -1.6, 2.0), 2), "；".join(notes)
+
+
+def cost_at_ratio(prices: np.ndarray, chips: np.ndarray, ratio: float) -> float | None:
+    total = float(chips.sum())
+    if total <= 0:
+        return None
+    target = total * ratio
+    index = int(np.searchsorted(np.cumsum(chips), target, side="left"))
+    index = min(max(index, 0), len(prices) - 1)
+    return float(prices[index])
+
+
+def allocate_chip_weights(prices: np.ndarray, low: float, high: float, center: float) -> np.ndarray:
+    if high <= low:
+        weights = np.zeros_like(prices, dtype=float)
+        weights[int(np.argmin(np.abs(prices - center)))] = 1.0
+        return weights
+
+    center = clamp(center, low, high)
+    weights = np.zeros_like(prices, dtype=float)
+    in_range = (prices >= low) & (prices <= high)
+    if not np.any(in_range):
+        return weights
+
+    left_span = max(center - low, 1e-6)
+    right_span = max(high - center, 1e-6)
+    left_mask = in_range & (prices <= center)
+    right_mask = in_range & (prices > center)
+    weights[left_mask] = (prices[left_mask] - low) / left_span
+    weights[right_mask] = (high - prices[right_mask]) / right_span
+    weights = np.clip(weights, 0, None)
+    total = float(weights.sum())
+    if total <= 0:
+        weights[in_range] = 1.0
+        total = float(weights.sum())
+    return weights / total
+
+
+def daily_chip_records(df: pd.DataFrame) -> list[dict[str, Any]]:
+    records: list[dict[str, Any]] = []
+    for row in df.tail(160).to_dict("records"):
+        turnover = safe_float(row.get("turnover"))
+        if turnover is None:
+            continue
+        turnover_pct = turnover * 100 if turnover <= 1 else turnover
+        records.append(
+            {
+                "date": pd.to_datetime(row.get("date")).strftime("%Y-%m-%d"),
+                "open": safe_float(row.get("open")),
+                "close": safe_float(row.get("close")),
+                "high": safe_float(row.get("high")),
+                "low": safe_float(row.get("low")),
+                "turnover_pct": turnover_pct,
+            }
+        )
+    return [
+        record
+        for record in records
+        if None
+        not in (
+            record.get("open"),
+            record.get("close"),
+            record.get("high"),
+            record.get("low"),
+            record.get("turnover_pct"),
+        )
+    ]
+
+
+def calculate_chip_metrics(
+    records: list[dict[str, Any]],
+    latest_close: Any = None,
+    source: str = "Eastmoney daily kline + local CYQ estimate",
+) -> dict[str, Any]:
+    usable = records[-160:]
+    if len(usable) < 40:
+        raise RuntimeError("筹码K线样本不足")
+
+    lows = np.array([float(item["low"]) for item in usable], dtype=float)
+    highs = np.array([float(item["high"]) for item in usable], dtype=float)
+    min_price = float(np.nanmin(lows))
+    max_price = float(np.nanmax(highs))
+    if not math.isfinite(min_price) or not math.isfinite(max_price) or max_price <= min_price:
+        raise RuntimeError("筹码价格区间无效")
+
+    prices = np.linspace(min_price, max_price, 180)
+    chips = np.zeros_like(prices, dtype=float)
+    for item in usable:
+        turnover = clamp(float(item["turnover_pct"]) / 100, 0, 1)
+        if turnover <= 0:
+            continue
+        low = float(item["low"])
+        high = float(item["high"])
+        center = (float(item["open"]) + float(item["close"]) + high + low) / 4
+        chips *= 1 - turnover
+        chips += allocate_chip_weights(prices, low, high, center) * turnover
+
+    total = float(chips.sum())
+    if total <= 0:
+        raise RuntimeError("筹码分布为空")
+
+    close = safe_float(latest_close) or float(usable[-1]["close"])
+    avg_cost = float(np.sum(prices * chips) / total)
+    profit_ratio = float(chips[prices <= close].sum() / total * 100)
+    low_70 = cost_at_ratio(prices, chips, 0.15)
+    high_70 = cost_at_ratio(prices, chips, 0.85)
+    low_90 = cost_at_ratio(prices, chips, 0.05)
+    high_90 = cost_at_ratio(prices, chips, 0.95)
+    concentration_70 = (high_70 - low_70) / (high_70 + low_70) * 100 if low_70 and high_70 else None
+    concentration_90 = (high_90 - low_90) / (high_90 + low_90) * 100 if low_90 and high_90 else None
+    cost_gap_pct = (close / avg_cost - 1) * 100 if avg_cost else None
+    chip_score, note = score_chip_structure(profit_ratio, cost_gap_pct, concentration_70)
+    bonus = clamp(chip_score * 0.35, -0.5, 0.6)
+
+    return {
+        "chip_profit_ratio": round_or_none(profit_ratio),
+        "chip_avg_cost": round_or_none(avg_cost),
+        "chip_cost_gap_pct": round_or_none(cost_gap_pct),
+        "chip_concentration_70": round_or_none(concentration_70),
+        "chip_concentration_90": round_or_none(concentration_90),
+        "chip_score": round_or_none(chip_score),
+        "chip_label": chip_label(chip_score),
+        "chip_bonus": round_or_none(bonus),
+        "chip_source": source,
+        "chip_date": usable[-1]["date"],
+        "chip_note": note,
     }
 
 
@@ -1307,6 +1521,16 @@ def analyze_candidate(candidate: Candidate, live_quote: dict[str, Any] | None = 
             buy_price_path = "等回撤接入"
             buy_price_note = "当前未触发买入观察信号；优先等待回撤到观察区间上沿以内。"
 
+    try:
+        chip_meta = calculate_chip_metrics(
+            daily_chip_records(df),
+            latest_close,
+            "Sina daily qfq turnover + local CYQ estimate",
+        )
+    except Exception as exc:
+        chip_meta = empty_chip_meta()
+        chip_meta["chip_note"] = f"筹码计算暂缺：{compact_error(exc)}"
+
     return {
         "code": candidate.code,
         "name": candidate.name,
@@ -1357,6 +1581,7 @@ def analyze_candidate(candidate: Candidate, live_quote: dict[str, Any] | None = 
         "catalysts": candidate.catalysts,
         "risks": risk_notes,
         "as_of_date": as_of_date,
+        **chip_meta,
     }
 
 
@@ -1386,7 +1611,8 @@ def build_payload() -> dict[str, Any]:
             row = analyze_candidate(candidate, meta)
             layer_one_bonus = safe_float(meta.get("layer_one_bonus")) or 0.0
             fund_flow_bonus = safe_float(meta.get("fund_flow_bonus")) or 0.0
-            row["score"] = round(row["score"] + layer_one_bonus + fund_flow_bonus, 1)
+            chip_bonus = safe_float(row.get("chip_bonus")) or 0.0
+            row["score"] = round(row["score"] + layer_one_bonus + fund_flow_bonus + chip_bonus, 1)
             row["candidate_source"] = meta.get("candidate_source") or "主题库"
             row["layer_one_score"] = meta.get("layer_one_score")
             row["layer_one_rank"] = meta.get("layer_one_rank")
@@ -1442,17 +1668,18 @@ def build_payload() -> dict[str, Any]:
         "as_of_date": as_of_date,
         "market": "A股主板",
         "source_status": {
-            "quotes": "akshare.stock_zh_a_spot intraday snapshot + stock_zh_a_daily qfq / Sina + Eastmoney/Tonghuashun fund flow",
+            "quotes": "akshare.stock_zh_a_spot intraday snapshot + stock_zh_a_daily qfq / Sina + Eastmoney/Tonghuashun fund flow + Sina turnover chip estimate",
             "fallback": False,
             "note": "免费数据源可能延迟或限流；关键决策请复核实时行情。",
             "warnings": errors,
         },
         "model": {
             "name": "Two-layer Serenity main-board screen",
-            "description": "第一层扫描全A股主板的趋势、动量、流动性和主力资金流；第二层再做产业链瓶颈、供需验证、催化剂和估值重估筛选；价格纪律拆成回撤接入和突破确认两条路径。",
+            "description": "第一层扫描全A股主板的趋势、动量、流动性和主力资金流；第二层再做产业链瓶颈、供需验证、催化剂、筹码结构和估值重估筛选；价格纪律拆成回撤接入和突破确认两条路径。",
             "board_filter": "000/001/002/003/600/601/603/605",
             "universe_layer": "全主板行情快照粗筛",
             "serenity_layer": "战略主题库 + 产业链瓶颈深度打分",
+            "chip_factor": "筹码结构用于辅助确认成本分布和兑现压力，不单独构成买卖依据。",
             "candidates": [asdict(candidate) for candidate in candidate_library],
         },
         "universe_scan": universe_payload,
