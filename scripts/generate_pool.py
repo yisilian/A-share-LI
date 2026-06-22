@@ -157,6 +157,25 @@ def is_mainboard_code(code: str) -> bool:
     return code.startswith(MAINBOARD_PREFIXES)
 
 
+def latest_a_share_trade_date() -> str:
+    today = datetime.now(CN_TZ).date()
+    try:
+        import akshare as ak
+
+        calendar = ak.tool_trade_date_hist_sina()
+        trade_dates = pd.to_datetime(calendar["trade_date"], errors="coerce").dt.date.dropna().tolist()
+        past_dates = [trade_date for trade_date in trade_dates if trade_date <= today]
+        if past_dates:
+            return max(past_dates).isoformat()
+    except Exception:
+        pass
+
+    if today.weekday() < 5:
+        return today.isoformat()
+    days_back = today.weekday() - 4
+    return (today - timedelta(days=days_back)).isoformat()
+
+
 def percentile_rank(series: pd.Series) -> pd.Series:
     return series.rank(method="average", pct=True).fillna(0.0)
 
@@ -424,6 +443,8 @@ def build_universe_scan(candidate_library: list[Candidate]) -> tuple[dict[str, d
     df = ak.stock_zh_a_spot()
     if df.empty:
         raise RuntimeError("stock_zh_a_spot returned empty data")
+    market_date = latest_a_share_trade_date()
+    quote_snapshot_at = datetime.now(CN_TZ).isoformat(timespec="seconds")
 
     normalized = df.copy()
     normalized["code"] = normalized["代码"].map(normalize_code)
@@ -504,6 +525,8 @@ def build_universe_scan(candidate_library: list[Candidate]) -> tuple[dict[str, d
             "close": round_or_none(row.close),
             "pct_chg": round_or_none(row.pct_chg),
             "amount": round_or_none(row.amount, 0),
+            "quote_date": market_date,
+            "quote_snapshot_at": quote_snapshot_at,
             "layer_one_score": round_or_none(row.layer_one_score),
             "layer_one_rank": int(row.layer_one_rank),
             **fund_meta_from_record(row._asdict()),
@@ -519,6 +542,8 @@ def build_universe_scan(candidate_library: list[Candidate]) -> tuple[dict[str, d
             "close": round_or_none(row.close),
             "pct_chg": round_or_none(row.pct_chg),
             "amount": round_or_none(row.amount, 0),
+            "quote_date": market_date,
+            "quote_snapshot_at": quote_snapshot_at,
             "layer_one_score": round_or_none(row.layer_one_score),
             **fund_meta_from_record(row._asdict()),
         }
@@ -528,7 +553,9 @@ def build_universe_scan(candidate_library: list[Candidate]) -> tuple[dict[str, d
     payload = {
         "schema_version": "1.0",
         "generated_at": datetime.now(CN_TZ).isoformat(timespec="seconds"),
-        "source": "akshare.stock_zh_a_spot / Sina",
+        "market_date": market_date,
+        "quote_snapshot_at": quote_snapshot_at,
+        "source": "akshare.stock_zh_a_spot / Sina intraday snapshot",
         "scope": "全A股主板",
         "raw_count": int(len(normalized)),
         "mainboard_count": int(len(mainboard)),
@@ -557,6 +584,9 @@ def select_candidates_from_universe(candidate_library: list[Candidate]) -> tuple
                 "layer_one_rank": None,
                 "layer_one_pct_chg": None,
                 "layer_one_amount": None,
+                "live_quote_date": None,
+                "live_quote_snapshot_at": None,
+                "live_close": None,
                 "layer_one_bonus": 0.0,
                 **empty_fund_flow_meta(),
             }
@@ -594,6 +624,9 @@ def select_candidates_from_universe(candidate_library: list[Candidate]) -> tuple
             "layer_one_rank": scan.get("layer_one_rank"),
             "layer_one_pct_chg": scan.get("pct_chg"),
             "layer_one_amount": scan.get("amount"),
+            "live_quote_date": scan.get("quote_date") or universe_payload.get("market_date"),
+            "live_quote_snapshot_at": scan.get("quote_snapshot_at") or universe_payload.get("quote_snapshot_at"),
+            "live_close": scan.get("close"),
             "layer_one_bonus": round_or_none(min(2.2, first_layer_score / 100 * 2.2)),
             **fund_meta_from_record(scan),
         }
@@ -611,6 +644,9 @@ def select_candidates_from_universe(candidate_library: list[Candidate]) -> tuple
                 "layer_one_rank": None,
                 "layer_one_pct_chg": None,
                 "layer_one_amount": None,
+                "live_quote_date": None,
+                "live_quote_snapshot_at": None,
+                "live_close": None,
                 "layer_one_bonus": 0.0,
                 **empty_fund_flow_meta(),
             }
@@ -826,8 +862,13 @@ def load_existing_review_records() -> list[dict[str, Any]]:
     return list(records_by_code.values())
 
 
-def build_review_center(rows: list[dict[str, Any]], as_of_date: str) -> dict[str, Any]:
+def build_review_center(
+    rows: list[dict[str, Any]],
+    as_of_date: str,
+    review_quotes_by_code: dict[str, dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     current_by_code = {row["code"]: row for row in rows}
+    review_quotes_by_code = review_quotes_by_code or {}
     entries_by_code: dict[str, dict[str, dict[str, Any]]] = {}
 
     for record in load_existing_review_records():
@@ -910,19 +951,33 @@ def build_review_center(rows: list[dict[str, Any]], as_of_date: str) -> dict[str
                 "board": current_row.get("board"),
             }
         else:
-            try:
-                df = load_daily(code)
+            live_quote = review_quotes_by_code.get(code, {})
+            live_close = safe_float(live_quote.get("live_close"))
+            live_quote_date = live_quote.get("live_quote_date")
+            if live_close is not None and live_close > 0 and live_quote_date:
                 latest_quote = {
-                    "date": df["date"].iloc[-1].strftime("%Y-%m-%d"),
-                    "close": float(df["close"].astype(float).iloc[-1]),
+                    "date": str(live_quote_date),
+                    "close": live_close,
                     "rank": None,
                     "status_key": "exited",
                     "name": next((item.get("name") for item in entries.values() if item.get("name")), code),
                     "theme": next((item.get("theme") for item in entries.values() if item.get("theme")), ""),
                     "board": board_for(code),
                 }
-            except Exception as exc:  # keep historical review available even if a quote source fails
-                quote_error = str(exc)
+            else:
+                try:
+                    df = load_daily(code)
+                    latest_quote = {
+                        "date": df["date"].iloc[-1].strftime("%Y-%m-%d"),
+                        "close": float(df["close"].astype(float).iloc[-1]),
+                        "rank": None,
+                        "status_key": "exited",
+                        "name": next((item.get("name") for item in entries.values() if item.get("name")), code),
+                        "theme": next((item.get("theme") for item in entries.values() if item.get("theme")), ""),
+                        "board": board_for(code),
+                    }
+                except Exception as exc:  # keep historical review available even if a quote source fails
+                    quote_error = str(exc)
 
         if latest_quote and latest_quote.get("close") is not None:
             entries[str(latest_quote["date"])] = latest_quote
@@ -1089,14 +1144,27 @@ def load_daily(code: str) -> pd.DataFrame:
     return df
 
 
-def analyze_candidate(candidate: Candidate) -> dict[str, Any]:
+def analyze_candidate(candidate: Candidate, live_quote: dict[str, Any] | None = None) -> dict[str, Any]:
     df = load_daily(candidate.code)
     close = df["close"].astype(float)
     high = df["high"].astype(float)
     low = df["low"].astype(float)
 
-    latest_close = float(close.iloc[-1])
-    as_of_date = df["date"].iloc[-1].strftime("%Y-%m-%d")
+    daily_latest_close = float(close.iloc[-1])
+    daily_as_of_date = df["date"].iloc[-1].strftime("%Y-%m-%d")
+    latest_close = daily_latest_close
+    as_of_date = daily_as_of_date
+    price_source = "daily_qfq"
+    live_quote = live_quote or {}
+    live_close = safe_float(live_quote.get("live_close"))
+    live_quote_date = live_quote.get("live_quote_date")
+    if live_close is not None and live_close > 0 and live_quote_date:
+        live_date = parse_date_value(live_quote_date)
+        daily_date = parse_date_value(daily_as_of_date)
+        if live_date is None or daily_date is None or live_date >= daily_date:
+            latest_close = live_close
+            as_of_date = str(live_quote_date)
+            price_source = "spot_snapshot"
     ma20 = float(close.tail(20).mean())
     ma60 = float(close.tail(60).mean()) if len(close) >= 60 else ma20
     high20 = float(high.tail(20).max())
@@ -1244,6 +1312,12 @@ def analyze_candidate(candidate: Candidate) -> dict[str, Any]:
         "logic": candidate.logic,
         "score": round(score, 1),
         "close": round_or_none(latest_close),
+        "price_source": price_source,
+        "daily_as_of_date": daily_as_of_date,
+        "daily_close": round_or_none(daily_latest_close),
+        "live_quote_date": live_quote_date,
+        "live_quote_snapshot_at": live_quote.get("live_quote_snapshot_at"),
+        "live_quote_price": round_or_none(live_close),
         "ma20": round_or_none(ma20),
         "ma60": round_or_none(ma60),
         "atr14": round_or_none(atr14),
@@ -1305,8 +1379,8 @@ def build_payload() -> dict[str, Any]:
 
     for candidate in selected_candidates:
         try:
-            row = analyze_candidate(candidate)
             meta = candidate_meta.get(candidate.code, {})
+            row = analyze_candidate(candidate, meta)
             layer_one_bonus = safe_float(meta.get("layer_one_bonus")) or 0.0
             fund_flow_bonus = safe_float(meta.get("fund_flow_bonus")) or 0.0
             row["score"] = round(row["score"] + layer_one_bonus + fund_flow_bonus, 1)
@@ -1332,7 +1406,12 @@ def build_payload() -> dict[str, Any]:
     as_of_date = max(row["as_of_date"] for row in rows)
     attach_tracking(rows, as_of_date)
     tracking_summary = build_tracking_summary(rows)
-    review_payload = build_review_center(rows, as_of_date)
+    review_quotes_by_code = {
+        code: meta
+        for code, meta in candidate_meta.items()
+        if safe_float(meta.get("live_close")) is not None and meta.get("live_quote_date")
+    }
+    review_payload = build_review_center(rows, as_of_date, review_quotes_by_code)
     counts = {
         "total": len(rows),
         "watch": sum(1 for row in rows if row["status_key"] == "watch"),
@@ -1360,7 +1439,7 @@ def build_payload() -> dict[str, Any]:
         "as_of_date": as_of_date,
         "market": "A股主板",
         "source_status": {
-            "quotes": "akshare.stock_zh_a_spot + stock_zh_a_daily / Sina + Eastmoney/Tonghuashun fund flow",
+            "quotes": "akshare.stock_zh_a_spot intraday snapshot + stock_zh_a_daily qfq / Sina + Eastmoney/Tonghuashun fund flow",
             "fallback": False,
             "note": "免费数据源可能延迟或限流；关键决策请复核实时行情。",
             "warnings": errors,
