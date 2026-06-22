@@ -21,11 +21,15 @@ DATA_DIR = ROOT / "data"
 LATEST_PATH = DATA_DIR / "latest.json"
 REVIEW_PATH = DATA_DIR / "review.json"
 UNIVERSE_PATH = DATA_DIR / "universe_scan.json"
+MODEL_FEEDBACK_PATH = DATA_DIR / "model_feedback.json"
 HISTORY_DIR = DATA_DIR / "history"
 CN_TZ = timezone(timedelta(hours=8))
 FINAL_POOL_SIZE = 10
 DEEP_ANALYSIS_LIMIT = 28
 UNIVERSE_EXPORT_LIMIT = 120
+FEEDBACK_HORIZONS = (1, 3, 5, 10)
+FEEDBACK_SCORE_CAP = 0.8
+FEEDBACK_MIN_STRONG_SAMPLES = 8
 MAINBOARD_PREFIXES = ("000", "001", "002", "003", "600", "601", "603", "605")
 EASTMONEY_FUND_FLOW_URL = "https://push2.eastmoney.com/api/qt/clist/get"
 EASTMONEY_FUND_FLOW_FS = "m:0+t:6+f:!2,m:0+t:13+f:!2,m:0+t:80+f:!2,m:1+t:2+f:!2,m:1+t:23+f:!2,m:0+t:7+f:!2,m:1+t:3+f:!2"
@@ -53,6 +57,26 @@ CHIP_KEYS = [
     "chip_date",
     "chip_note",
 ]
+FEEDBACK_DIMENSION_LABELS = {
+    "theme_group": "主题分组",
+    "buy_signal": "买入信号",
+    "status": "状态",
+    "fund_flow": "资金流",
+    "chip": "筹码",
+    "layer_rank": "全主板排名",
+    "entry_gap": "接入价偏离",
+    "price_source": "价格源",
+}
+FEEDBACK_DIMENSION_WEIGHTS = {
+    "theme_group": 0.8,
+    "buy_signal": 1.0,
+    "status": 0.9,
+    "fund_flow": 0.75,
+    "chip": 0.85,
+    "layer_rank": 0.65,
+    "entry_gap": 0.7,
+    "price_source": 0.35,
+}
 
 
 @dataclass(frozen=True)
@@ -1051,6 +1075,300 @@ def build_tracking_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def theme_group(theme: Any) -> str:
+    text = str(theme or "")
+    groups = [
+        ("AI半导体", ("AI", "半导体", "PCB", "封装", "光模块", "算力", "电子材料", "封测")),
+        ("电力设备", ("电网", "电力", "特高压", "输变电", "变压器", "海缆", "能源装备", "燃机")),
+        ("资源周期", ("铜", "黄金", "铝", "稀土", "金属", "矿", "锡", "资源")),
+        ("高端制造", ("机器人", "汽车", "智能", "热管理", "精密传动", "控制电机")),
+        ("消费医药", ("医药", "中药", "白酒", "家电", "乳制品", "消费")),
+        ("大金融", ("银行", "证券", "保险", "金融")),
+        ("军工船舶", ("船", "军", "航空", "发动机", "大飞机")),
+    ]
+    for label, keywords in groups:
+        if any(keyword in text for keyword in keywords):
+            return label
+    return text.split("/")[0] if text else "未分组"
+
+
+def layer_rank_bucket(rank: Any) -> str:
+    value = safe_float(rank)
+    if value is None:
+        return "未入全主板排名"
+    if value <= 50:
+        return "前50"
+    if value <= 120:
+        return "前120"
+    if value <= 300:
+        return "前300"
+    return "300名以后"
+
+
+def entry_gap_bucket(gap_pct: Any) -> str:
+    value = safe_float(gap_pct)
+    if value is None:
+        return "接入偏离未知"
+    if value <= -3:
+        return "低于接入价"
+    if value <= 3:
+        return "贴近接入价"
+    if value <= 10:
+        return "略高于接入价"
+    return "明显高于接入价"
+
+
+def feedback_factor_id(dimension: str, value: Any) -> str:
+    clean_value = str(value or "未知").replace("\n", " ").strip() or "未知"
+    return f"{dimension}:{clean_value}"
+
+
+def feedback_factor_label(dimension: str, value: Any) -> str:
+    return f"{FEEDBACK_DIMENSION_LABELS.get(dimension, dimension)}={value or '未知'}"
+
+
+def stock_feedback_factors(stock: dict[str, Any]) -> list[dict[str, str]]:
+    raw_factors = [
+        ("theme_group", theme_group(stock.get("theme"))),
+        ("buy_signal", stock.get("buy_signal_label") or stock.get("buy_signal_key") or "未知"),
+        ("status", stock.get("intervention_status") or stock.get("status_key") or "未知"),
+        ("fund_flow", stock.get("fund_flow_label") or "资金流暂缺"),
+        ("chip", stock.get("chip_label") or "筹码暂缺"),
+        ("layer_rank", layer_rank_bucket(stock.get("layer_one_rank"))),
+        ("entry_gap", entry_gap_bucket(stock.get("entry_gap_pct"))),
+        ("price_source", stock.get("price_source") or "未知"),
+    ]
+    return [
+        {
+            "id": feedback_factor_id(dimension, value),
+            "dimension": dimension,
+            "value": str(value),
+            "label": feedback_factor_label(dimension, value),
+        }
+        for dimension, value in raw_factors
+    ]
+
+
+def snapshot_return(start_stock: dict[str, Any], future_stock: dict[str, Any]) -> float | None:
+    start_close = safe_float(start_stock.get("close"))
+    future_close = safe_float(future_stock.get("close"))
+    if not start_close or future_close is None:
+        return None
+    return (future_close / start_close - 1) * 100
+
+
+def snapshot_benchmark_return(start_stocks: list[dict[str, Any]], future_stocks: list[dict[str, Any]]) -> float:
+    future_by_code = {stock.get("code"): stock for stock in future_stocks if stock.get("code")}
+    returns: list[float] = []
+    for stock in start_stocks:
+        code = stock.get("code")
+        if not code or code not in future_by_code:
+            continue
+        value = snapshot_return(stock, future_by_code[code])
+        if value is not None:
+            returns.append(value)
+    return sum(returns) / len(returns) if returns else 0.0
+
+
+def feedback_snapshot_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    cleaned: list[dict[str, Any]] = []
+    for stock in rows:
+        close = safe_float(stock.get("close"))
+        code = stock.get("code")
+        if not code or close is None:
+            continue
+        item = dict(stock)
+        item["close"] = close
+        cleaned.append(item)
+    return cleaned
+
+
+def build_feedback_snapshots(current_rows: list[dict[str, Any]], as_of_date: str) -> list[dict[str, Any]]:
+    by_date: dict[str, list[dict[str, Any]]] = {}
+    current_date = parse_date_value(as_of_date)
+    for snapshot in load_history_snapshots():
+        snapshot_date = str(snapshot.get("as_of_date") or "")
+        parsed = parse_date_value(snapshot_date)
+        if not snapshot_date or (current_date and parsed and parsed > current_date):
+            continue
+        rows = feedback_snapshot_rows(snapshot.get("stocks", []))
+        if rows:
+            by_date[snapshot_date] = rows
+    current_cleaned = feedback_snapshot_rows(current_rows)
+    if current_cleaned:
+        by_date[as_of_date] = current_cleaned
+    return [
+        {"as_of_date": date, "stocks": by_date[date]}
+        for date in sorted(by_date, key=lambda value: parse_date_value(value) or datetime.min.date())
+    ]
+
+
+def finalize_feedback_factor(raw: dict[str, Any]) -> dict[str, Any]:
+    weighted_count = raw["weighted_count"]
+    raw_count = int(raw["raw_count"])
+    avg_return = raw["return_sum"] / weighted_count if weighted_count else 0.0
+    avg_excess = raw["excess_sum"] / weighted_count if weighted_count else 0.0
+    hit_rate = raw["hit_weight"] / weighted_count * 100 if weighted_count else 0.0
+    sample_shrink = raw_count / (raw_count + FEEDBACK_MIN_STRONG_SAMPLES)
+    shrunk_excess = avg_excess * sample_shrink
+    confidence = clamp(sample_shrink * min(1.0, weighted_count / FEEDBACK_MIN_STRONG_SAMPLES), 0.0, 1.0)
+    score_effect = clamp(shrunk_excess / 4.0, -0.45, 0.45)
+    return {
+        "id": raw["id"],
+        "dimension": raw["dimension"],
+        "value": raw["value"],
+        "label": raw["label"],
+        "sample_count": raw_count,
+        "weighted_sample_count": round_or_none(weighted_count),
+        "avg_return_pct": round_or_none(avg_return),
+        "avg_excess_return_pct": round_or_none(avg_excess),
+        "shrunk_excess_return_pct": round_or_none(shrunk_excess),
+        "hit_rate_pct": round_or_none(hit_rate),
+        "confidence": round_or_none(confidence, 3),
+        "score_effect": round_or_none(score_effect, 3),
+        "horizons": sorted(raw["horizons"]),
+    }
+
+
+def build_model_feedback(current_rows: list[dict[str, Any]], as_of_date: str) -> dict[str, Any]:
+    snapshots = build_feedback_snapshots(current_rows, as_of_date)
+    aggregates: dict[str, dict[str, Any]] = {}
+    observations = 0
+
+    for index, snapshot in enumerate(snapshots):
+        start_stocks = snapshot.get("stocks", [])
+        if not start_stocks:
+            continue
+        for horizon in FEEDBACK_HORIZONS:
+            future_index = index + horizon
+            if future_index >= len(snapshots):
+                continue
+            future_stocks = snapshots[future_index].get("stocks", [])
+            future_by_code = {stock.get("code"): stock for stock in future_stocks if stock.get("code")}
+            if not future_by_code:
+                continue
+            benchmark = snapshot_benchmark_return(start_stocks, future_stocks)
+            recency_weight = 0.88 ** max(0, len(snapshots) - future_index - 1)
+            horizon_weight = 1 / math.sqrt(horizon)
+            weight = recency_weight * horizon_weight
+            for stock in start_stocks:
+                code = stock.get("code")
+                future_stock = future_by_code.get(code)
+                if not code or future_stock is None:
+                    continue
+                return_pct = snapshot_return(stock, future_stock)
+                if return_pct is None:
+                    continue
+                excess_return = return_pct - benchmark
+                observations += 1
+                for factor in stock_feedback_factors(stock):
+                    bucket = aggregates.setdefault(
+                        factor["id"],
+                        {
+                            "id": factor["id"],
+                            "dimension": factor["dimension"],
+                            "value": factor["value"],
+                            "label": factor["label"],
+                            "raw_count": 0,
+                            "weighted_count": 0.0,
+                            "return_sum": 0.0,
+                            "excess_sum": 0.0,
+                            "hit_weight": 0.0,
+                            "horizons": set(),
+                        },
+                    )
+                    bucket["raw_count"] += 1
+                    bucket["weighted_count"] += weight
+                    bucket["return_sum"] += return_pct * weight
+                    bucket["excess_sum"] += excess_return * weight
+                    bucket["hit_weight"] += weight if excess_return > 0 else 0.0
+                    bucket["horizons"].add(horizon)
+
+    factor_stats = [finalize_feedback_factor(raw) for raw in aggregates.values()]
+    factor_stats.sort(key=lambda item: (abs(item.get("score_effect") or 0), item.get("sample_count") or 0), reverse=True)
+    positive = [item for item in factor_stats if (item.get("score_effect") or 0) > 0]
+    negative = [item for item in factor_stats if (item.get("score_effect") or 0) < 0]
+    confidence = "高" if observations >= 80 else "中" if observations >= 30 else "低"
+    return {
+        "schema_version": "1.0",
+        "generated_at": datetime.now(CN_TZ).isoformat(timespec="seconds"),
+        "as_of_date": as_of_date,
+        "method": "历史推荐快照归因：按主题、买入信号、状态、资金流、筹码、全主板排名、接入价偏离等维度，计算后续收益相对同期推荐池均值的超额收益；样本少时做收缩，单股反馈分封顶。",
+        "horizons": list(FEEDBACK_HORIZONS),
+        "snapshot_count": len(snapshots),
+        "observation_count": observations,
+        "confidence": confidence,
+        "score_cap": FEEDBACK_SCORE_CAP,
+        "min_strong_samples": FEEDBACK_MIN_STRONG_SAMPLES,
+        "summary": {
+            "factor_count": len(factor_stats),
+            "positive_factor_count": len(positive),
+            "negative_factor_count": len(negative),
+            "top_positive": positive[:5],
+            "top_negative": negative[:5],
+            "note": "低样本阶段只做小幅修正；反馈分不是收益承诺，而是模型复盘后的排序校正。",
+        },
+        "factor_stats": factor_stats,
+    }
+
+
+def feedback_effect_for_row(row: dict[str, Any], feedback_payload: dict[str, Any]) -> dict[str, Any]:
+    stats_by_id = {
+        item.get("id"): item
+        for item in feedback_payload.get("factor_stats", [])
+        if item.get("id")
+    }
+    matched: list[dict[str, Any]] = []
+    total = 0.0
+    for factor in stock_feedback_factors(row):
+        stat = stats_by_id.get(factor["id"])
+        if not stat:
+            continue
+        effect = safe_float(stat.get("score_effect")) or 0.0
+        confidence = safe_float(stat.get("confidence")) or 0.0
+        dimension_weight = FEEDBACK_DIMENSION_WEIGHTS.get(factor["dimension"], 0.5)
+        contribution = effect * confidence * dimension_weight
+        if abs(contribution) < 0.005:
+            continue
+        matched.append(
+            {
+                "id": factor["id"],
+                "label": factor["label"],
+                "dimension": factor["dimension"],
+                "sample_count": stat.get("sample_count"),
+                "avg_excess_return_pct": stat.get("avg_excess_return_pct"),
+                "confidence": stat.get("confidence"),
+                "score_effect": round_or_none(contribution, 3),
+            }
+        )
+        total += contribution
+
+    total = clamp(total, -FEEDBACK_SCORE_CAP, FEEDBACK_SCORE_CAP)
+    matched.sort(key=lambda item: abs(item.get("score_effect") or 0), reverse=True)
+    if total > 0.15:
+        label = "回访正反馈"
+    elif total < -0.15:
+        label = "回访负反馈"
+    elif matched:
+        label = "回访中性"
+    else:
+        label = "回访样本不足"
+    note = "；".join(
+        f"{item['label']}({item['score_effect']:+.2f}, 样本{item.get('sample_count')})"
+        for item in matched[:3]
+        if item.get("score_effect") is not None
+    )
+    if not note:
+        note = "暂无足够历史样本，反馈分不参与或仅极小幅参与。"
+    return {
+        "feedback_bonus": round_or_none(total, 3),
+        "feedback_label": label,
+        "feedback_confidence": feedback_payload.get("confidence", "低"),
+        "feedback_note": note,
+        "feedback_factors": matched[:5],
+    }
+
+
 def load_existing_review_records() -> list[dict[str, Any]]:
     records_by_code: dict[str, dict[str, Any]] = {}
 
@@ -1627,12 +1945,19 @@ def build_payload() -> dict[str, Any]:
     if not rows:
         raise RuntimeError("; ".join(errors) or "no rows generated")
 
+    as_of_date = max(row["as_of_date"] for row in rows)
+    feedback_payload = build_model_feedback(rows, as_of_date)
+    for row in rows:
+        feedback_meta = feedback_effect_for_row(row, feedback_payload)
+        row.update(feedback_meta)
+        feedback_bonus = safe_float(feedback_meta.get("feedback_bonus")) or 0.0
+        row["score"] = round(row["score"] + feedback_bonus, 1)
+
     rows.sort(key=lambda row: row["score"], reverse=True)
     rows = rows[:FINAL_POOL_SIZE]
     for index, row in enumerate(rows, start=1):
         row["rank"] = index
 
-    as_of_date = max(row["as_of_date"] for row in rows)
     attach_tracking(rows, as_of_date)
     tracking_summary = build_tracking_summary(rows)
     review_quotes_by_code = {
@@ -1680,9 +2005,11 @@ def build_payload() -> dict[str, Any]:
             "universe_layer": "全主板行情快照粗筛",
             "serenity_layer": "战略主题库 + 产业链瓶颈深度打分",
             "chip_factor": "筹码结构用于辅助确认成本分布和兑现压力，不单独构成买卖依据。",
+            "feedback_factor": "回访中心历史表现会按信号归因形成反馈分；低样本阶段强制收缩并限制单股影响。",
             "candidates": [asdict(candidate) for candidate in candidate_library],
         },
         "universe_scan": universe_payload,
+        "model_feedback": feedback_payload,
         "summary": {**counts, "overall_signal": overall_signal, "tracking": tracking_summary},
         "review": review_payload,
         "stocks": rows,
@@ -1700,6 +2027,9 @@ def write_payload(payload: dict[str, Any]) -> None:
     universe_payload = payload.get("universe_scan")
     if isinstance(universe_payload, dict):
         UNIVERSE_PATH.write_text(json.dumps(universe_payload, ensure_ascii=False, indent=2, allow_nan=False) + "\n", encoding="utf-8")
+    feedback_payload = payload.get("model_feedback")
+    if isinstance(feedback_payload, dict):
+        MODEL_FEEDBACK_PATH.write_text(json.dumps(feedback_payload, ensure_ascii=False, indent=2, allow_nan=False) + "\n", encoding="utf-8")
     history_path = HISTORY_DIR / f"{payload['as_of_date']}.json"
     history_path.write_text(text + "\n", encoding="utf-8")
 

@@ -28,6 +28,13 @@ const formatMoney = (value) => {
   return `${(Number(value) / 100000000).toFixed(2)}亿`;
 };
 
+const formatSignedNumber = (value, digits = 2) => {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) return "-";
+  const number = Number(value);
+  const sign = number > 0 ? "+" : "";
+  return `${sign}${number.toFixed(digits)}`;
+};
+
 const returnClass = (value) => {
   if (value === null || value === undefined || Number.isNaN(Number(value))) return "return-flat";
   if (Number(value) > 0) return "return-positive";
@@ -59,6 +66,22 @@ const chipClass = (score) => {
   if (Number(score) >= 0.4) return "chip-positive";
   if (Number(score) <= -0.3) return "chip-negative";
   return "chip-neutral";
+};
+
+const feedbackClass = (value) => {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) return "feedback-neutral";
+  if (Number(value) > 0.05) return "feedback-positive";
+  if (Number(value) < -0.05) return "feedback-negative";
+  return "feedback-neutral";
+};
+
+const formatFeedbackFactors = (stock) => {
+  const factors = stock.feedback_factors || [];
+  if (!factors.length) return stock.feedback_note || "暂无足够历史样本，反馈分暂不明显。";
+  return factors
+    .slice(0, 3)
+    .map((factor) => `${factor.label}：${formatSignedNumber(factor.score_effect, 2)}，样本 ${factor.sample_count ?? "-"}`)
+    .join("；");
 };
 
 const byId = (id) => document.getElementById(id);
@@ -97,6 +120,10 @@ function render() {
   byId("averageReturn").textContent = formatPercent(averageReturn);
   byId("averageReturn").className = returnClass(averageReturn);
   byId("modelDescription").textContent = data.model?.description || byId("modelDescription").textContent;
+  const feedback = data.model_feedback || {};
+  byId("feedbackStatus").textContent = feedback.schema_version
+    ? `反馈模型：${feedback.confidence || "低"}置信；样本 ${feedback.observation_count ?? 0} 条；因子 ${feedback.summary?.factor_count ?? 0} 个；单股修正上限 ±${formatNumber(feedback.score_cap, 2)} 分。${feedback.summary?.note || ""}`
+    : "反馈模型：等待历史样本积累。";
   byId("sourceStatus").textContent = `更新时间：${data.generated_at || "-"}；数据源：${data.source_status?.quotes || "-"}；${data.source_status?.note || ""}`;
 
   const stocks = (data.stocks || []).filter((stock) => {
@@ -138,6 +165,8 @@ function createStockCard(stock) {
   node.querySelector(".fund-flow").classList.add(fundFlowClass(stock.fund_flow_score));
   node.querySelector(".chip-status").textContent = stock.chip_label || "筹码暂缺";
   node.querySelector(".chip-status").classList.add(chipClass(stock.chip_score));
+  node.querySelector(".feedback-bonus").textContent = formatSignedNumber(stock.feedback_bonus, 3);
+  node.querySelector(".feedback-bonus").classList.add(feedbackClass(stock.feedback_bonus));
   node.querySelector(".entry-price").textContent = formatNumber(stock.recommended_entry_price);
   node.querySelector(".breakout-price").textContent = formatNumber(stock.breakout_confirm_price);
   node.querySelector(".watch-zone").textContent = stock.watch_zone || "-";
@@ -158,6 +187,8 @@ function createStockCard(stock) {
     `${stock.fund_flow_label || "资金流暂缺"}：今日主力 ${formatMoney(stock.fund_today_main_net)} / ${formatPercent(stock.fund_today_main_net_pct)}，5日主力 ${formatMoney(stock.fund_5d_main_net)} / ${formatPercent(stock.fund_5d_main_net_pct)}，资金分 ${formatNumber(stock.fund_flow_score)}，模型加减分 ${formatNumber(stock.fund_flow_bonus)}。资金流只作趋势质量验证。`;
   node.querySelector(".chip-detail").textContent =
     `${stock.chip_label || "筹码暂缺"}：获利比例 ${formatPercent(stock.chip_profit_ratio)}，平均成本 ${formatNumber(stock.chip_avg_cost)}，现价偏离平均成本 ${formatPercent(stock.chip_cost_gap_pct)}，70%集中度 ${formatPercent(stock.chip_concentration_70)}，90%集中度 ${formatPercent(stock.chip_concentration_90)}，筹码分 ${formatNumber(stock.chip_score)}，模型加减分 ${formatNumber(stock.chip_bonus)}。${stock.chip_note || "筹码只作成本结构与兑现压力验证。"} 来源：${stock.chip_source || "-"}。`;
+  node.querySelector(".feedback-detail").textContent =
+    `${stock.feedback_label || "回访样本不足"}：反馈分 ${formatSignedNumber(stock.feedback_bonus, 3)}，整体置信 ${stock.feedback_confidence || "低"}。${formatFeedbackFactors(stock)}`;
   node.querySelector(".entry-detail").textContent =
     `推荐接入价 ${formatNumber(stock.recommended_entry_price)}，接入区间 ${formatNumber(stock.entry_price_lower)}-${formatNumber(stock.entry_price_upper)}，现价偏离 ${formatPercent(stock.entry_gap_pct)}。${stock.entry_price_note || ""}`;
   node.querySelector(".breakout-detail").textContent =

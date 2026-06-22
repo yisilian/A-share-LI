@@ -203,7 +203,7 @@ main {
 
 .metrics {
   display: grid;
-  grid-template-columns: repeat(11, minmax(0, 1fr));
+  grid-template-columns: repeat(12, minmax(0, 1fr));
   gap: 1px;
   background: var(--line);
   border-top: 1px solid var(--line);
@@ -253,6 +253,18 @@ main {
 }
 
 .chip-negative {
+  color: var(--red);
+}
+
+.feedback-positive {
+  color: var(--green);
+}
+
+.feedback-neutral {
+  color: var(--muted);
+}
+
+.feedback-negative {
   color: var(--red);
 }
 
