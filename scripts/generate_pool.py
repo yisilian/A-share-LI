@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import subprocess
 from dataclasses import dataclass, asdict
 from datetime import datetime, timezone, timedelta
@@ -12,6 +13,8 @@ import numpy as np
 import pandas as pd
 import requests
 
+os.environ.setdefault("NO_PROXY", "*")
+os.environ.setdefault("no_proxy", "*")
 
 ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = ROOT / "data"
