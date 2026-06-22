@@ -9,7 +9,10 @@ on:
       - "requirements.txt"
       - ".github/workflows/update-data.yml"
   schedule:
-    - cron: "30 10 * * 1-5"
+    # GitHub cron uses UTC. These map to Beijing time 10:00, 14:30, and 20:00.
+    - cron: "0 2 * * 1-5"
+    - cron: "30 6 * * 1-5"
+    - cron: "0 12 * * 1-5"
 
 permissions:
   contents: write
