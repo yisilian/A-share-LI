@@ -935,8 +935,55 @@ def load_history_snapshots() -> list[dict[str, Any]]:
     return snapshots
 
 
+def tracking_entry_key(date_value: Any, source: str) -> str:
+    return f"{date_value}|{source}"
+
+
+TRACKING_SOURCE_ORDER = {
+    "review_first": 0,
+    "history_snapshot": 1,
+    "review_latest": 2,
+    "current_pool": 3,
+    "latest_quote": 4,
+}
+
+
+def tracking_sort_key(item: dict[str, Any]) -> tuple[Any, int]:
+    return (
+        parse_date_value(item.get("date")) or datetime.min.date(),
+        TRACKING_SOURCE_ORDER.get(str(item.get("source") or ""), 50),
+    )
+
+
 def attach_tracking(rows: list[dict[str, Any]], as_of_date: str) -> None:
     entries_by_code: dict[str, dict[str, dict[str, Any]]] = {row["code"]: {} for row in rows}
+
+    for record in load_existing_review_records():
+        code = record.get("code")
+        if code not in entries_by_code:
+            continue
+
+        first_price = safe_float(record.get("first_recommend_price"))
+        first_date = record.get("first_recommend_date")
+        if first_date and first_price is not None:
+            entries_by_code[code][tracking_entry_key(first_date, "review_first")] = {
+                "date": str(first_date),
+                "close": first_price,
+                "rank": record.get("first_rank"),
+                "status_key": record.get("first_status_key"),
+                "source": "review_first",
+            }
+
+        latest_price = safe_float(record.get("latest_price"))
+        latest_date = record.get("latest_date")
+        if latest_date and latest_price is not None:
+            entries_by_code[code][tracking_entry_key(latest_date, "review_latest")] = {
+                "date": str(latest_date),
+                "close": latest_price,
+                "rank": record.get("last_seen_rank"),
+                "status_key": record.get("current_status_key"),
+                "source": "review_latest",
+            }
 
     for snapshot in load_history_snapshots():
         snapshot_date = snapshot.get("as_of_date")
@@ -949,21 +996,23 @@ def attach_tracking(rows: list[dict[str, Any]], as_of_date: str) -> None:
             close = safe_float(stock.get("close"))
             if close is None:
                 continue
-            entries_by_code[code][str(snapshot_date)] = {
+            entries_by_code[code][tracking_entry_key(snapshot_date, "history")] = {
                 "date": str(snapshot_date),
                 "close": close,
                 "rank": stock.get("rank"),
                 "status_key": stock.get("status_key"),
+                "source": "history_snapshot",
             }
 
     for row in rows:
         close = safe_float(row.get("close"))
         if close is not None:
-            entries_by_code[row["code"]][as_of_date] = {
+            entries_by_code[row["code"]][tracking_entry_key(as_of_date, "current")] = {
                 "date": as_of_date,
                 "close": close,
                 "rank": row.get("rank"),
                 "status_key": row.get("status_key"),
+                "source": "current_pool",
             }
 
     current_date = parse_date_value(as_of_date)
@@ -971,7 +1020,7 @@ def attach_tracking(rows: list[dict[str, Any]], as_of_date: str) -> None:
     for row in rows:
         series = sorted(
             entries_by_code[row["code"]].values(),
-            key=lambda item: parse_date_value(item["date"]) or datetime.min.date(),
+            key=tracking_sort_key,
         )
 
         if not series:
@@ -1024,6 +1073,7 @@ def attach_tracking(rows: list[dict[str, Any]], as_of_date: str) -> None:
             "first_recommend_price": round_or_none(first_close),
             "first_rank": first.get("rank"),
             "first_status_key": first.get("status_key"),
+            "first_source": first.get("source"),
             "latest_date": latest.get("date"),
             "latest_price": round_or_none(latest_close),
             "tracking_days": tracking_days,
@@ -1478,6 +1528,29 @@ def apply_feedback_price_adjustment(row: dict[str, Any], feedback_meta: dict[str
     return row
 
 
+def merge_review_record(existing: dict[str, Any], incoming: dict[str, Any]) -> dict[str, Any]:
+    merged = {**existing, **incoming}
+
+    existing_first = parse_date_value(existing.get("first_recommend_date"))
+    incoming_first = parse_date_value(incoming.get("first_recommend_date"))
+    if incoming_first and (existing_first is None or incoming_first < existing_first):
+        for key in ("first_recommend_date", "first_recommend_price", "first_rank", "first_status_key", "first_source"):
+            merged[key] = incoming.get(key)
+    else:
+        for key in ("first_recommend_date", "first_recommend_price", "first_rank", "first_status_key", "first_source"):
+            if existing.get(key) is not None:
+                merged[key] = existing.get(key)
+
+    existing_latest = parse_date_value(existing.get("latest_date"))
+    incoming_latest = parse_date_value(incoming.get("latest_date"))
+    if existing_latest and (incoming_latest is None or existing_latest >= incoming_latest):
+        for key in ("latest_date", "latest_price", "current_rank", "current_status_key", "last_seen_rank", "last_seen_in_pool_date", "latest_source"):
+            if existing.get(key) is not None:
+                merged[key] = existing.get(key)
+
+    return merged
+
+
 def load_existing_review_records() -> list[dict[str, Any]]:
     records_by_code: dict[str, dict[str, Any]] = {}
 
@@ -1490,7 +1563,10 @@ def load_existing_review_records() -> list[dict[str, Any]]:
         for record in data.get("records", []):
             code = record.get("code")
             if code:
-                records_by_code[code] = record
+                if code in records_by_code:
+                    records_by_code[code] = merge_review_record(records_by_code[code], record)
+                else:
+                    records_by_code[code] = record
 
     if REVIEW_PATH.exists():
         try:
@@ -1522,7 +1598,7 @@ def build_review_center(
         entries_by_code.setdefault(code, {})
         first_price = safe_float(record.get("first_recommend_price"))
         if record.get("first_recommend_date") and first_price is not None:
-            entries_by_code[code][str(record["first_recommend_date"])] = {
+            entries_by_code[code][tracking_entry_key(record["first_recommend_date"], "review_first")] = {
                 "date": str(record["first_recommend_date"]),
                 "close": first_price,
                 "rank": record.get("first_rank"),
@@ -1530,10 +1606,11 @@ def build_review_center(
                 "name": record.get("name"),
                 "theme": record.get("theme"),
                 "board": record.get("board"),
+                "source": "review_first",
             }
         latest_price = safe_float(record.get("latest_price"))
         if record.get("latest_date") and latest_price is not None:
-            entries_by_code[code][str(record["latest_date"])] = {
+            entries_by_code[code][tracking_entry_key(record["latest_date"], "review_latest")] = {
                 "date": str(record["latest_date"]),
                 "close": latest_price,
                 "rank": record.get("last_seen_rank"),
@@ -1541,6 +1618,7 @@ def build_review_center(
                 "name": record.get("name"),
                 "theme": record.get("theme"),
                 "board": record.get("board"),
+                "source": "review_latest",
             }
 
     for snapshot in load_history_snapshots():
@@ -1552,7 +1630,7 @@ def build_review_center(
             close = safe_float(stock.get("close"))
             if not code or close is None:
                 continue
-            entries_by_code.setdefault(code, {})[str(snapshot_date)] = {
+            entries_by_code.setdefault(code, {})[tracking_entry_key(snapshot_date, "history")] = {
                 "date": str(snapshot_date),
                 "close": close,
                 "rank": stock.get("rank"),
@@ -1560,13 +1638,14 @@ def build_review_center(
                 "name": stock.get("name"),
                 "theme": stock.get("theme"),
                 "board": stock.get("board"),
+                "source": "history_snapshot",
             }
 
     for row in rows:
         close = safe_float(row.get("close"))
         if close is None:
             continue
-        entries_by_code.setdefault(row["code"], {})[as_of_date] = {
+        entries_by_code.setdefault(row["code"], {})[tracking_entry_key(as_of_date, "current")] = {
             "date": as_of_date,
             "close": close,
             "rank": row.get("rank"),
@@ -1574,6 +1653,7 @@ def build_review_center(
             "name": row.get("name"),
             "theme": row.get("theme"),
             "board": row.get("board"),
+            "source": "current_pool",
         }
 
     records: list[dict[str, Any]] = []
@@ -1593,6 +1673,7 @@ def build_review_center(
                 "name": current_row.get("name"),
                 "theme": current_row.get("theme"),
                 "board": current_row.get("board"),
+                "source": "current_pool",
             }
         else:
             live_quote = review_quotes_by_code.get(code, {})
@@ -1607,6 +1688,7 @@ def build_review_center(
                     "name": next((item.get("name") for item in entries.values() if item.get("name")), code),
                     "theme": next((item.get("theme") for item in entries.values() if item.get("theme")), ""),
                     "board": board_for(code),
+                    "source": "latest_quote",
                 }
             else:
                 try:
@@ -1619,16 +1701,17 @@ def build_review_center(
                         "name": next((item.get("name") for item in entries.values() if item.get("name")), code),
                         "theme": next((item.get("theme") for item in entries.values() if item.get("theme")), ""),
                         "board": board_for(code),
+                        "source": "latest_quote",
                     }
                 except Exception as exc:  # keep historical review available even if a quote source fails
                     quote_error = str(exc)
 
         if latest_quote and latest_quote.get("close") is not None:
-            entries[str(latest_quote["date"])] = latest_quote
+            entries[tracking_entry_key(latest_quote["date"], "latest_quote")] = latest_quote
 
         series = sorted(
             entries.values(),
-            key=lambda item: parse_date_value(item["date"]) or datetime.min.date(),
+            key=tracking_sort_key,
         )
         if not series:
             continue
@@ -1637,7 +1720,7 @@ def build_review_center(
         latest = series[-1]
         last_seen = max(
             [item for item in series if item.get("rank") is not None],
-            key=lambda item: parse_date_value(item["date"]) or datetime.min.date(),
+            key=tracking_sort_key,
             default=latest,
         )
 
@@ -1699,10 +1782,13 @@ def build_review_center(
                 "first_recommend_date": first.get("date"),
                 "first_recommend_price": round_or_none(first_close),
                 "first_rank": first.get("rank"),
+                "first_status_key": first.get("status_key"),
+                "first_source": first.get("source"),
                 "last_seen_in_pool_date": last_seen.get("date"),
                 "last_seen_rank": last_seen.get("rank"),
                 "latest_date": latest.get("date"),
                 "latest_price": round_or_none(latest_close),
+                "latest_source": latest.get("source"),
                 "tracking_days": tracking_days,
                 "snapshot_count": len(series),
                 "return_since_first_pct": round_or_none(return_pct),

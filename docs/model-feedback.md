@@ -96,3 +96,5 @@ GitHub Actions 会在工作日北京时间 10:00、14:30、20:00 自动运行 `s
 - `data/history/{日期}.json`
 
 工作流会先同步远端最新 `main`，生成数据后提交 `data/` 目录，推送前再 rebase 一次，降低自动刷新和人工提交之间的冲突概率。
+
+同一只股票如果调出后再次进入观察池，不会重置首次推荐锚点。回访链条会优先保留 `review.json` 中最早的 `first_recommend_date` 和 `first_recommend_price`；同一天多次刷新时，内部使用“日期+来源”记录，避免晚间重新入池价格覆盖上午首次推荐价。
