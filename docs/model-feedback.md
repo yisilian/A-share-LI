@@ -61,9 +61,38 @@
 - `feedback_note`：影响最大的几个历史信号。
 - `feedback_factors`：可机器审查的因子贡献列表。
 
+## 价格反馈调整
+
+反馈模型不仅影响排序，也会小幅调整价格纪律：
+
+- 正反馈：历史上类似信号组合表现较好时，推荐接入价和可买价会轻微上移。
+- 负反馈：历史上类似信号组合表现较差时，推荐接入价和可买价会下压，要求更便宜的位置。
+- 不追高线不被反馈放宽，避免把历史反馈变成追高理由。
+- 调整幅度来自 `feedback_bonus * 1.2`，并限制在 `-1.2%` 到 `+1.0%`。
+- 每只股票保留原始价格字段，例如 `base_recommended_entry_price`，方便审查调整前后差异。
+
+相关输出字段：
+
+- `price_feedback_adjustment_pct`：价格纪律调整比例。
+- `price_feedback_label`：价格纪律略放宽、收紧或不变。
+- `price_feedback_note`：调整原因。
+- `base_recommended_entry_price` / `base_buyable_price`：调整前价格。
+
 ## 当前限制
 
 - 历史样本仍少，早期反馈分会很小，这是刻意设计。
 - 归因只能说明历史相关性，不能证明因果。
 - 当前仍以规则模型为主，反馈模型是排序校正层。
 - 后续可以增加更细的分时快照、指数基准、行业基准、调出后收益衰减和因子稳定性检验。
+
+## 自动更新
+
+GitHub Actions 会在工作日北京时间 10:00、14:30、20:00 自动运行 `scripts/generate_pool.py`。每次运行都会刷新：
+
+- `data/latest.json`
+- `data/review.json`
+- `data/universe_scan.json`
+- `data/model_feedback.json`
+- `data/history/{日期}.json`
+
+工作流会先同步远端最新 `main`，生成数据后提交 `data/` 目录，推送前再 rebase 一次，降低自动刷新和人工提交之间的冲突概率。

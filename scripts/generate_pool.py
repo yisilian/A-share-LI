@@ -1369,6 +1369,115 @@ def feedback_effect_for_row(row: dict[str, Any], feedback_payload: dict[str, Any
     }
 
 
+def adjusted_price(value: Any, adjustment_pct: float, floor: Any = None, ceiling: Any = None) -> float | None:
+    base = safe_float(value)
+    if base is None:
+        return None
+    updated = base * (1 + adjustment_pct / 100)
+    floor_value = safe_float(floor)
+    ceiling_value = safe_float(ceiling)
+    if floor_value is not None:
+        updated = max(updated, floor_value)
+    if ceiling_value is not None:
+        updated = min(updated, ceiling_value)
+    return updated
+
+
+def apply_feedback_price_adjustment(row: dict[str, Any], feedback_meta: dict[str, Any]) -> dict[str, Any]:
+    feedback_bonus = safe_float(feedback_meta.get("feedback_bonus")) or 0.0
+    # Feedback score is already sample-shrunk. Convert it to a small price-discipline adjustment.
+    adjustment_pct = clamp(feedback_bonus * 1.2, -1.2, 1.0)
+    if abs(adjustment_pct) < 0.01:
+        adjustment_pct = 0.0
+
+    auditable_keys = [
+        "recommended_entry_price",
+        "entry_price_lower",
+        "entry_price_upper",
+        "buyable_price",
+        "buyable_price_lower",
+        "buyable_price_upper",
+        "next_buy_trigger_price",
+        "breakout_buy_upper_price",
+        "entry_gap_pct",
+        "watch_zone",
+    ]
+    for key in auditable_keys:
+        row[f"base_{key}"] = row.get(key)
+
+    if adjustment_pct == 0.0:
+        label = "价格纪律不变"
+        note = "回访样本或反馈强度不足，推荐接入价和可买价保持原模型结果。"
+        row.update(
+            {
+                "price_feedback_adjustment_pct": 0.0,
+                "price_feedback_label": label,
+                "price_feedback_note": note,
+            }
+        )
+        return row
+
+    close = safe_float(row.get("close"))
+    invalid = safe_float(row.get("invalid_price"))
+    no_chase = safe_float(row.get("no_chase_price"))
+    breakout_confirm = safe_float(row.get("breakout_confirm_price"))
+    price_ceiling = no_chase * 0.985 if no_chase else None
+
+    entry_lower = adjusted_price(row.get("entry_price_lower"), adjustment_pct, invalid, price_ceiling)
+    entry_upper = adjusted_price(row.get("entry_price_upper"), adjustment_pct, invalid, price_ceiling)
+    if entry_lower is not None and entry_upper is not None and entry_lower > entry_upper:
+        entry_lower = entry_upper
+    recommended_entry = adjusted_price(row.get("recommended_entry_price"), adjustment_pct, entry_lower, entry_upper)
+
+    if entry_lower is not None:
+        row["entry_price_lower"] = round_or_none(entry_lower)
+    if entry_upper is not None:
+        row["entry_price_upper"] = round_or_none(entry_upper)
+    if recommended_entry is not None:
+        row["recommended_entry_price"] = round_or_none(recommended_entry)
+        row["entry_gap_pct"] = round_or_none((close / recommended_entry - 1) * 100 if close else None)
+    if entry_lower is not None and entry_upper is not None:
+        row["watch_zone"] = f"{entry_lower:.2f}-{entry_upper:.2f}"
+
+    path = str(row.get("buy_price_path") or "")
+    if "突破" in path:
+        upper_floor = breakout_confirm
+        upper_ceiling = no_chase
+    else:
+        upper_floor = invalid
+        upper_ceiling = entry_upper
+
+    for key in ("buyable_price_lower", "buyable_price_upper", "buyable_price", "breakout_buy_upper_price"):
+        updated = adjusted_price(row.get(key), adjustment_pct, upper_floor if key != "buyable_price_upper" else None, upper_ceiling)
+        if updated is not None:
+            row[key] = round_or_none(updated)
+
+    next_price = row.get("next_buy_trigger_price")
+    if "突破" in path:
+        updated_next = adjusted_price(next_price, adjustment_pct, breakout_confirm, no_chase)
+    else:
+        updated_next = adjusted_price(next_price, adjustment_pct, invalid, entry_upper)
+    if updated_next is not None:
+        row["next_buy_trigger_price"] = round_or_none(updated_next)
+
+    if adjustment_pct > 0:
+        label = "价格纪律略放宽"
+        direction = "上移"
+    else:
+        label = "价格纪律收紧"
+        direction = "下压"
+
+    row["price_feedback_adjustment_pct"] = round_or_none(adjustment_pct, 3)
+    row["price_feedback_label"] = label
+    row["price_feedback_note"] = (
+        f"根据回访归因反馈，推荐接入价和可买价相对原模型{direction}{abs(adjustment_pct):.2f}%。"
+        "调整幅度已做样本收缩和上限控制，不改变不追高线。"
+    )
+    row["entry_price_note"] = f"{row.get('entry_price_note') or ''} {row['price_feedback_note']}".strip()
+    row["buy_price_note"] = f"{row.get('buy_price_note') or ''} {row['price_feedback_note']}".strip()
+    return row
+
+
 def load_existing_review_records() -> list[dict[str, Any]]:
     records_by_code: dict[str, dict[str, Any]] = {}
 
@@ -1950,6 +2059,7 @@ def build_payload() -> dict[str, Any]:
     for row in rows:
         feedback_meta = feedback_effect_for_row(row, feedback_payload)
         row.update(feedback_meta)
+        apply_feedback_price_adjustment(row, feedback_meta)
         feedback_bonus = safe_float(feedback_meta.get("feedback_bonus")) or 0.0
         row["score"] = round(row["score"] + feedback_bonus, 1)
 
@@ -2006,6 +2116,7 @@ def build_payload() -> dict[str, Any]:
             "serenity_layer": "战略主题库 + 产业链瓶颈深度打分",
             "chip_factor": "筹码结构用于辅助确认成本分布和兑现压力，不单独构成买卖依据。",
             "feedback_factor": "回访中心历史表现会按信号归因形成反馈分；低样本阶段强制收缩并限制单股影响。",
+            "price_feedback_factor": "推荐接入价和可买价会跟随回访反馈做小幅纪律校正；正反馈略放宽，负反馈收紧，不改变不追高线。",
             "candidates": [asdict(candidate) for candidate in candidate_library],
         },
         "universe_scan": universe_payload,

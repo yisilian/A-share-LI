@@ -84,6 +84,12 @@ const formatFeedbackFactors = (stock) => {
     .join("；");
 };
 
+const formatPriceFeedback = (stock) => {
+  const adjustment = formatPercent(stock.price_feedback_adjustment_pct, 3);
+  if (adjustment === "-") return stock.price_feedback_note || "价格反馈暂缺。";
+  return `${stock.price_feedback_label || "价格纪律不变"}：${adjustment}。${stock.price_feedback_note || ""}`;
+};
+
 const byId = (id) => document.getElementById(id);
 
 async function loadPool() {
@@ -188,9 +194,9 @@ function createStockCard(stock) {
   node.querySelector(".chip-detail").textContent =
     `${stock.chip_label || "筹码暂缺"}：获利比例 ${formatPercent(stock.chip_profit_ratio)}，平均成本 ${formatNumber(stock.chip_avg_cost)}，现价偏离平均成本 ${formatPercent(stock.chip_cost_gap_pct)}，70%集中度 ${formatPercent(stock.chip_concentration_70)}，90%集中度 ${formatPercent(stock.chip_concentration_90)}，筹码分 ${formatNumber(stock.chip_score)}，模型加减分 ${formatNumber(stock.chip_bonus)}。${stock.chip_note || "筹码只作成本结构与兑现压力验证。"} 来源：${stock.chip_source || "-"}。`;
   node.querySelector(".feedback-detail").textContent =
-    `${stock.feedback_label || "回访样本不足"}：反馈分 ${formatSignedNumber(stock.feedback_bonus, 3)}，整体置信 ${stock.feedback_confidence || "低"}。${formatFeedbackFactors(stock)}`;
+    `${stock.feedback_label || "回访样本不足"}：反馈分 ${formatSignedNumber(stock.feedback_bonus, 3)}，整体置信 ${stock.feedback_confidence || "低"}。${formatFeedbackFactors(stock)}。${formatPriceFeedback(stock)}`;
   node.querySelector(".entry-detail").textContent =
-    `推荐接入价 ${formatNumber(stock.recommended_entry_price)}，接入区间 ${formatNumber(stock.entry_price_lower)}-${formatNumber(stock.entry_price_upper)}，现价偏离 ${formatPercent(stock.entry_gap_pct)}。${stock.entry_price_note || ""}`;
+    `推荐接入价 ${formatNumber(stock.recommended_entry_price)}，接入区间 ${formatNumber(stock.entry_price_lower)}-${formatNumber(stock.entry_price_upper)}，现价偏离 ${formatPercent(stock.entry_gap_pct)}。原接入价 ${formatNumber(stock.base_recommended_entry_price)}。${stock.entry_price_note || ""}`;
   node.querySelector(".breakout-detail").textContent =
     `突破确认价 ${formatNumber(stock.breakout_confirm_price)}，前高压力 ${formatNumber(stock.resistance_price)}，距现价 ${formatPercent(stock.breakout_gap_pct)}。${stock.breakout_price_note || ""}`;
   node.querySelector(".first-recommend").textContent = tracking.first_recommend_date
