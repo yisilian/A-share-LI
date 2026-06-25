@@ -1,12 +1,12 @@
 {
   "schema_version": "1.0",
-  "generated_at": "2026-06-25T17:52:16+08:00",
+  "generated_at": "2026-06-25T21:59:44+08:00",
   "as_of_date": "2026-06-25",
   "summary": {
-    "tracked_count": 36,
+    "tracked_count": 37,
     "active_count": 10,
-    "exited_count": 26,
-    "average_return_pct": -1.39,
+    "exited_count": 27,
+    "average_return_pct": -1.35,
     "positive_count": 9,
     "negative_count": 27,
     "best": {
@@ -88,21 +88,21 @@
       "name": "华天科技",
       "theme": "封测",
       "board": "深市主板",
-      "active_in_current_pool": false,
-      "current_rank": null,
-      "current_status_key": null,
+      "active_in_current_pool": true,
+      "current_rank": 8,
+      "current_status_key": "breakout",
       "first_recommend_date": "2026-06-18",
       "first_recommend_price": 19.61,
       "first_rank": null,
       "first_status_key": null,
       "first_source": "review_first",
       "last_seen_in_pool_date": "2026-06-25",
-      "last_seen_rank": 9,
+      "last_seen_rank": 8,
       "latest_date": "2026-06-25",
       "latest_price": 22.4,
-      "latest_source": "latest_quote",
+      "latest_source": "current_pool",
       "tracking_days": 7,
-      "snapshot_count": 4,
+      "snapshot_count": 5,
       "return_since_first_pct": 14.23,
       "max_return_since_first_pct": 14.23,
       "drawdown_from_peak_pct": 0.0,
@@ -110,8 +110,8 @@
       "best_date": "2026-06-25",
       "worst_close": 19.61,
       "worst_date": "2026-06-18",
-      "review_status": "已调出-正收益",
-      "comment": "不在最新推荐池中，但历史推荐目前仍为正收益，继续保留回访记录。",
+      "review_status": "当前池中-正反馈",
+      "comment": "仍在最新推荐池中，且推荐后已有正收益。",
       "review_rank": 3
     },
     {
@@ -135,9 +135,9 @@
       "tracking_days": 7,
       "snapshot_count": 4,
       "return_since_first_pct": 13.97,
-      "max_return_since_first_pct": 14.84,
-      "drawdown_from_peak_pct": -0.75,
-      "best_close": 78.4,
+      "max_return_since_first_pct": 13.97,
+      "drawdown_from_peak_pct": 0.0,
+      "best_close": 77.81,
       "best_date": "2026-06-25",
       "worst_close": 68.27,
       "worst_date": "2026-06-18",
@@ -151,7 +151,7 @@
       "theme": "半导体设备",
       "board": "深市主板",
       "active_in_current_pool": true,
-      "current_rank": 8,
+      "current_rank": 2,
       "current_status_key": "breakout",
       "first_recommend_date": "2026-06-18",
       "first_recommend_price": 721.04,
@@ -159,16 +159,16 @@
       "first_status_key": null,
       "first_source": "review_first",
       "last_seen_in_pool_date": "2026-06-25",
-      "last_seen_rank": 8,
+      "last_seen_rank": 2,
       "latest_date": "2026-06-25",
       "latest_price": 798.0,
       "latest_source": "current_pool",
       "tracking_days": 7,
       "snapshot_count": 7,
       "return_since_first_pct": 10.67,
-      "max_return_since_first_pct": 11.16,
-      "drawdown_from_peak_pct": -0.44,
-      "best_close": 801.51,
+      "max_return_since_first_pct": 10.67,
+      "drawdown_from_peak_pct": 0.0,
+      "best_close": 798.0,
       "best_date": "2026-06-25",
       "worst_close": 721.04,
       "worst_date": "2026-06-18",
@@ -181,21 +181,21 @@
       "name": "中信证券",
       "theme": "券商/资本市场",
       "board": "沪市主板",
-      "active_in_current_pool": false,
-      "current_rank": null,
-      "current_status_key": null,
+      "active_in_current_pool": true,
+      "current_rank": 7,
+      "current_status_key": "wait",
       "first_recommend_date": "2026-06-18",
       "first_recommend_price": 26.56,
       "first_rank": 8,
       "first_status_key": null,
       "first_source": "review_first",
       "last_seen_in_pool_date": "2026-06-25",
-      "last_seen_rank": 8,
+      "last_seen_rank": 7,
       "latest_date": "2026-06-25",
       "latest_price": 28.98,
-      "latest_source": "latest_quote",
+      "latest_source": "current_pool",
       "tracking_days": 7,
-      "snapshot_count": 4,
+      "snapshot_count": 5,
       "return_since_first_pct": 9.11,
       "max_return_since_first_pct": 9.11,
       "drawdown_from_peak_pct": 0.0,
@@ -203,8 +203,8 @@
       "best_date": "2026-06-25",
       "worst_close": 26.56,
       "worst_date": "2026-06-18",
-      "review_status": "已调出-正收益",
-      "comment": "不在最新推荐池中，但历史推荐目前仍为正收益，继续保留回访记录。",
+      "review_status": "当前池中-正反馈",
+      "comment": "仍在最新推荐池中，且推荐后已有正收益。",
       "review_rank": 6
     },
     {
@@ -213,7 +213,7 @@
       "theme": "AI PCB",
       "board": "深市主板",
       "active_in_current_pool": true,
-      "current_rank": 9,
+      "current_rank": 4,
       "current_status_key": "breakout",
       "first_recommend_date": "2026-06-18",
       "first_recommend_price": 147.9,
@@ -221,7 +221,7 @@
       "first_status_key": null,
       "first_source": "review_first",
       "last_seen_in_pool_date": "2026-06-25",
-      "last_seen_rank": 9,
+      "last_seen_rank": 4,
       "latest_date": "2026-06-25",
       "latest_price": 154.99,
       "latest_source": "current_pool",
@@ -244,7 +244,7 @@
       "theme": "创新药",
       "board": "沪市主板",
       "active_in_current_pool": true,
-      "current_rank": 5,
+      "current_rank": 6,
       "current_status_key": "wait",
       "first_recommend_date": "2026-06-18",
       "first_recommend_price": 48.42,
@@ -252,7 +252,7 @@
       "first_status_key": null,
       "first_source": "review_first",
       "last_seen_in_pool_date": "2026-06-25",
-      "last_seen_rank": 5,
+      "last_seen_rank": 6,
       "latest_date": "2026-06-25",
       "latest_price": 50.04,
       "latest_source": "current_pool",
@@ -301,6 +301,37 @@
       "review_rank": 9
     },
     {
+      "code": "601127",
+      "name": "赛力斯",
+      "theme": "智能汽车",
+      "board": "沪市主板",
+      "active_in_current_pool": true,
+      "current_rank": 9,
+      "current_status_key": "wait",
+      "first_recommend_date": "2026-06-25",
+      "first_recommend_price": 62.7,
+      "first_rank": 9,
+      "first_status_key": "wait",
+      "first_source": "current_pool",
+      "last_seen_in_pool_date": "2026-06-25",
+      "last_seen_rank": 9,
+      "latest_date": "2026-06-25",
+      "latest_price": 62.7,
+      "latest_source": "current_pool",
+      "tracking_days": 0,
+      "snapshot_count": 2,
+      "return_since_first_pct": 0.0,
+      "max_return_since_first_pct": 0.0,
+      "drawdown_from_peak_pct": 0.0,
+      "best_close": 62.7,
+      "best_date": "2026-06-25",
+      "worst_close": 62.7,
+      "worst_date": "2026-06-25",
+      "review_status": "当前池中-继续观察",
+      "comment": "仍在最新推荐池中，表现暂处于验证区间。",
+      "review_rank": 10
+    },
+    {
       "code": "600089",
       "name": "特变电工",
       "theme": "变压器/硅料/电力设备",
@@ -325,11 +356,11 @@
       "drawdown_from_peak_pct": -7.5,
       "best_close": 25.08,
       "best_date": "2026-06-22",
-      "worst_close": 23.02,
+      "worst_close": 23.2,
       "worst_date": "2026-06-25",
       "review_status": "已调出-负收益",
       "comment": "不在最新推荐池中，历史推荐目前为负收益，后续用于模型复盘。",
-      "review_rank": 10
+      "review_rank": 11
     },
     {
       "code": "000960",
@@ -356,11 +387,11 @@
       "drawdown_from_peak_pct": -0.56,
       "best_close": 44.67,
       "best_date": "2026-06-24",
-      "worst_close": 44.31,
+      "worst_close": 44.42,
       "worst_date": "2026-06-25",
       "review_status": "已调出-负收益",
       "comment": "不在最新推荐池中，历史推荐目前为负收益，后续用于模型复盘。",
-      "review_rank": 11
+      "review_rank": 12
     },
     {
       "code": "002028",
@@ -368,7 +399,7 @@
       "theme": "输变电设备",
       "board": "深市主板",
       "active_in_current_pool": true,
-      "current_rank": 7,
+      "current_rank": 10,
       "current_status_key": "wait",
       "first_recommend_date": "2026-06-18",
       "first_recommend_price": 190.2,
@@ -376,7 +407,7 @@
       "first_status_key": null,
       "first_source": "review_first",
       "last_seen_in_pool_date": "2026-06-25",
-      "last_seen_rank": 7,
+      "last_seen_rank": 10,
       "latest_date": "2026-06-25",
       "latest_price": 188.5,
       "latest_source": "current_pool",
@@ -391,7 +422,7 @@
       "worst_date": "2026-06-25",
       "review_status": "当前池中-继续观察",
       "comment": "仍在最新推荐池中，表现暂处于验证区间。",
-      "review_rank": 12
+      "review_rank": 13
     },
     {
       "code": "600406",
@@ -412,17 +443,17 @@
       "latest_price": 22.83,
       "latest_source": "latest_quote",
       "tracking_days": 7,
-      "snapshot_count": 6,
+      "snapshot_count": 5,
       "return_since_first_pct": -1.0,
       "max_return_since_first_pct": 3.86,
       "drawdown_from_peak_pct": -4.68,
       "best_close": 23.95,
       "best_date": "2026-06-22",
-      "worst_close": 22.73,
+      "worst_close": 22.83,
       "worst_date": "2026-06-25",
       "review_status": "已调出-负收益",
       "comment": "不在最新推荐池中，历史推荐目前为负收益，后续用于模型复盘。",
-      "review_rank": 13
+      "review_rank": 14
     },
     {
       "code": "601138",
@@ -430,7 +461,7 @@
       "theme": "AI服务器/算力基础设施",
       "board": "沪市主板",
       "active_in_current_pool": true,
-      "current_rank": 2,
+      "current_rank": 5,
       "current_status_key": "wait",
       "first_recommend_date": "2026-06-18",
       "first_recommend_price": 78.08,
@@ -438,7 +469,7 @@
       "first_status_key": null,
       "first_source": "review_first",
       "last_seen_in_pool_date": "2026-06-25",
-      "last_seen_rank": 2,
+      "last_seen_rank": 5,
       "latest_date": "2026-06-25",
       "latest_price": 76.99,
       "latest_source": "current_pool",
@@ -453,7 +484,7 @@
       "worst_date": "2026-06-24",
       "review_status": "当前池中-继续观察",
       "comment": "仍在最新推荐池中，表现暂处于验证区间。",
-      "review_rank": 14
+      "review_rank": 15
     },
     {
       "code": "000988",
@@ -484,16 +515,16 @@
       "worst_date": "2026-06-23",
       "review_status": "当前池中-继续观察",
       "comment": "仍在最新推荐池中，表现暂处于验证区间。",
-      "review_rank": 15
+      "review_rank": 16
     },
     {
       "code": "600150",
       "name": "中国船舶",
       "theme": "船舶制造",
       "board": "沪市主板",
-      "active_in_current_pool": true,
-      "current_rank": 6,
-      "current_status_key": "wait",
+      "active_in_current_pool": false,
+      "current_rank": null,
+      "current_status_key": null,
       "first_recommend_date": "2026-06-18",
       "first_recommend_price": 36.14,
       "first_rank": 6,
@@ -503,19 +534,19 @@
       "last_seen_rank": 6,
       "latest_date": "2026-06-25",
       "latest_price": 35.33,
-      "latest_source": "current_pool",
+      "latest_source": "latest_quote",
       "tracking_days": 7,
-      "snapshot_count": 7,
+      "snapshot_count": 6,
       "return_since_first_pct": -2.24,
       "max_return_since_first_pct": 3.29,
       "drawdown_from_peak_pct": -5.36,
       "best_close": 37.33,
       "best_date": "2026-06-22",
-      "worst_close": 35.25,
+      "worst_close": 35.33,
       "worst_date": "2026-06-25",
-      "review_status": "当前池中-继续观察",
-      "comment": "仍在最新推荐池中，表现暂处于验证区间。",
-      "review_rank": 16
+      "review_status": "已调出-负收益",
+      "comment": "不在最新推荐池中，历史推荐目前为负收益，后续用于模型复盘。",
+      "review_rank": 17
     },
     {
       "code": "000333",
@@ -546,7 +577,7 @@
       "worst_date": "2026-06-25",
       "review_status": "已调出-负收益",
       "comment": "不在最新推荐池中，历史推荐目前为负收益，后续用于模型复盘。",
-      "review_rank": 17
+      "review_rank": 18
     },
     {
       "code": "600312",
@@ -573,11 +604,11 @@
       "drawdown_from_peak_pct": -6.03,
       "best_close": 19.24,
       "best_date": "2026-06-22",
-      "worst_close": 18.03,
+      "worst_close": 18.08,
       "worst_date": "2026-06-25",
       "review_status": "已调出-负收益",
       "comment": "不在最新推荐池中，历史推荐目前为负收益，后续用于模型复盘。",
-      "review_rank": 18
+      "review_rank": 19
     },
     {
       "code": "600085",
@@ -604,20 +635,20 @@
       "drawdown_from_peak_pct": -3.3,
       "best_close": 23.66,
       "best_date": "2026-06-23",
-      "worst_close": 22.81,
+      "worst_close": 22.88,
       "worst_date": "2026-06-25",
       "review_status": "已调出-负收益",
       "comment": "不在最新推荐池中，历史推荐目前为负收益，后续用于模型复盘。",
-      "review_rank": 19
+      "review_rank": 20
     },
     {
       "code": "002050",
       "name": "三花智控",
       "theme": "机器人/热管理",
       "board": "深市主板",
-      "active_in_current_pool": true,
-      "current_rank": 10,
-      "current_status_key": "wait",
+      "active_in_current_pool": false,
+      "current_rank": null,
+      "current_status_key": null,
       "first_recommend_date": "2026-06-18",
       "first_recommend_price": 45.74,
       "first_rank": null,
@@ -627,9 +658,9 @@
       "last_seen_rank": 10,
       "latest_date": "2026-06-25",
       "latest_price": 43.94,
-      "latest_source": "current_pool",
+      "latest_source": "latest_quote",
       "tracking_days": 7,
-      "snapshot_count": 6,
+      "snapshot_count": 5,
       "return_since_first_pct": -3.94,
       "max_return_since_first_pct": 0.0,
       "drawdown_from_peak_pct": -3.94,
@@ -637,9 +668,9 @@
       "best_date": "2026-06-18",
       "worst_close": 43.9,
       "worst_date": "2026-06-24",
-      "review_status": "当前池中-继续观察",
-      "comment": "仍在最新推荐池中，表现暂处于验证区间。",
-      "review_rank": 20
+      "review_status": "已调出-负收益",
+      "comment": "不在最新推荐池中，历史推荐目前为负收益，后续用于模型复盘。",
+      "review_rank": 21
     },
     {
       "code": "002747",
@@ -666,11 +697,11 @@
       "drawdown_from_peak_pct": -4.08,
       "best_close": 38.44,
       "best_date": "2026-06-23",
-      "worst_close": 36.62,
+      "worst_close": 36.87,
       "worst_date": "2026-06-25",
       "review_status": "已调出-负收益",
       "comment": "不在最新推荐池中，历史推荐目前为负收益，后续用于模型复盘。",
-      "review_rank": 21
+      "review_rank": 22
     },
     {
       "code": "600036",
@@ -701,16 +732,16 @@
       "worst_date": "2026-06-25",
       "review_status": "已调出-负收益",
       "comment": "不在最新推荐池中，历史推荐目前为负收益，后续用于模型复盘。",
-      "review_rank": 22
+      "review_rank": 23
     },
     {
       "code": "601179",
       "name": "中国西电",
       "theme": "特高压/电力设备",
       "board": "沪市主板",
-      "active_in_current_pool": true,
-      "current_rank": 4,
-      "current_status_key": "wait",
+      "active_in_current_pool": false,
+      "current_rank": null,
+      "current_status_key": null,
       "first_recommend_date": "2026-06-22",
       "first_recommend_price": 16.79,
       "first_rank": null,
@@ -720,7 +751,7 @@
       "last_seen_rank": 4,
       "latest_date": "2026-06-25",
       "latest_price": 16.09,
-      "latest_source": "current_pool",
+      "latest_source": "latest_quote",
       "tracking_days": 3,
       "snapshot_count": 6,
       "return_since_first_pct": -4.17,
@@ -728,11 +759,11 @@
       "drawdown_from_peak_pct": -4.17,
       "best_close": 16.79,
       "best_date": "2026-06-22",
-      "worst_close": 15.91,
+      "worst_close": 16.09,
       "worst_date": "2026-06-25",
-      "review_status": "当前池中-继续观察",
-      "comment": "仍在最新推荐池中，表现暂处于验证区间。",
-      "review_rank": 23
+      "review_status": "已调出-负收益",
+      "comment": "不在最新推荐池中，历史推荐目前为负收益，后续用于模型复盘。",
+      "review_rank": 24
     },
     {
       "code": "603228",
@@ -759,11 +790,11 @@
       "drawdown_from_peak_pct": -4.23,
       "best_close": 81.06,
       "best_date": "2026-06-18",
-      "worst_close": 77.45,
+      "worst_close": 77.63,
       "worst_date": "2026-06-25",
       "review_status": "当前池中-继续观察",
       "comment": "仍在最新推荐池中，表现暂处于验证区间。",
-      "review_rank": 24
+      "review_rank": 25
     },
     {
       "code": "600111",
@@ -794,7 +825,7 @@
       "worst_date": "2026-06-25",
       "review_status": "已调出-负收益",
       "comment": "不在最新推荐池中，历史推荐目前为负收益，后续用于模型复盘。",
-      "review_rank": 25
+      "review_rank": 26
     },
     {
       "code": "601318",
@@ -821,11 +852,11 @@
       "drawdown_from_peak_pct": -5.16,
       "best_close": 51.98,
       "best_date": "2026-06-22",
-      "worst_close": 49.02,
+      "worst_close": 49.3,
       "worst_date": "2026-06-25",
       "review_status": "已调出-负收益",
       "comment": "不在最新推荐池中，历史推荐目前为负收益，后续用于模型复盘。",
-      "review_rank": 26
+      "review_rank": 27
     },
     {
       "code": "002594",
@@ -852,11 +883,11 @@
       "drawdown_from_peak_pct": -6.73,
       "best_close": 88.13,
       "best_date": "2026-06-18",
-      "worst_close": 81.75,
+      "worst_close": 82.2,
       "worst_date": "2026-06-25",
       "review_status": "已调出-负收益",
       "comment": "不在最新推荐池中，历史推荐目前为负收益，后续用于模型复盘。",
-      "review_rank": 27
+      "review_rank": 28
     },
     {
       "code": "600893",
@@ -883,11 +914,11 @@
       "drawdown_from_peak_pct": -7.5,
       "best_close": 41.6,
       "best_date": "2026-06-22",
-      "worst_close": 38.31,
+      "worst_close": 38.48,
       "worst_date": "2026-06-25",
       "review_status": "已调出-负收益",
       "comment": "不在最新推荐池中，历史推荐目前为负收益，后续用于模型复盘。",
-      "review_rank": 28
+      "review_rank": 29
     },
     {
       "code": "603728",
@@ -914,11 +945,11 @@
       "drawdown_from_peak_pct": -7.88,
       "best_close": 63.86,
       "best_date": "2026-06-18",
-      "worst_close": 58.73,
+      "worst_close": 58.83,
       "worst_date": "2026-06-25",
       "review_status": "已调出-负收益",
       "comment": "不在最新推荐池中，历史推荐目前为负收益，后续用于模型复盘。",
-      "review_rank": 29
+      "review_rank": 30
     },
     {
       "code": "601689",
@@ -949,7 +980,7 @@
       "worst_date": "2026-06-25",
       "review_status": "已调出-负收益",
       "comment": "不在最新推荐池中，历史推荐目前为负收益，后续用于模型复盘。",
-      "review_rank": 30
+      "review_rank": 31
     },
     {
       "code": "002472",
@@ -976,11 +1007,11 @@
       "drawdown_from_peak_pct": -9.96,
       "best_close": 43.78,
       "best_date": "2026-06-18",
-      "worst_close": 39.3,
+      "worst_close": 39.42,
       "worst_date": "2026-06-25",
       "review_status": "已调出-负收益",
       "comment": "不在最新推荐池中，历史推荐目前为负收益，后续用于模型复盘。",
-      "review_rank": 31
+      "review_rank": 32
     },
     {
       "code": "601600",
@@ -1007,11 +1038,11 @@
       "drawdown_from_peak_pct": -10.75,
       "best_close": 9.86,
       "best_date": "2026-06-22",
-      "worst_close": 8.76,
+      "worst_close": 8.8,
       "worst_date": "2026-06-25",
       "review_status": "已调出-负收益",
       "comment": "不在最新推荐池中，历史推荐目前为负收益，后续用于模型复盘。",
-      "review_rank": 32
+      "review_rank": 33
     },
     {
       "code": "000630",
@@ -1038,11 +1069,11 @@
       "drawdown_from_peak_pct": -15.76,
       "best_close": 7.93,
       "best_date": "2026-06-22",
-      "worst_close": 6.66,
+      "worst_close": 6.68,
       "worst_date": "2026-06-25",
       "review_status": "已调出-负收益",
       "comment": "不在最新推荐池中，历史推荐目前为负收益，后续用于模型复盘。",
-      "review_rank": 33
+      "review_rank": 34
     },
     {
       "code": "601899",
@@ -1069,11 +1100,11 @@
       "drawdown_from_peak_pct": -14.85,
       "best_close": 30.44,
       "best_date": "2026-06-22",
-      "worst_close": 25.77,
+      "worst_close": 25.92,
       "worst_date": "2026-06-25",
       "review_status": "已调出-负收益",
       "comment": "不在最新推荐池中，历史推荐目前为负收益，后续用于模型复盘。",
-      "review_rank": 34
+      "review_rank": 35
     },
     {
       "code": "000831",
@@ -1100,11 +1131,11 @@
       "drawdown_from_peak_pct": -13.06,
       "best_close": 66.3,
       "best_date": "2026-06-22",
-      "worst_close": 57.53,
+      "worst_close": 57.64,
       "worst_date": "2026-06-25",
       "review_status": "已调出-负收益",
       "comment": "不在最新推荐池中，历史推荐目前为负收益，后续用于模型复盘。",
-      "review_rank": 35
+      "review_rank": 36
     },
     {
       "code": "600489",
@@ -1131,11 +1162,11 @@
       "drawdown_from_peak_pct": -15.14,
       "best_close": 22.26,
       "best_date": "2026-06-22",
-      "worst_close": 18.84,
+      "worst_close": 18.89,
       "worst_date": "2026-06-25",
       "review_status": "已调出-负收益",
       "comment": "不在最新推荐池中，历史推荐目前为负收益，后续用于模型复盘。",
-      "review_rank": 36
+      "review_rank": 37
     }
   ]
 }
