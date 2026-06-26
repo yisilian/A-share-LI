@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0",
-  "generated_at": "2026-06-26T14:20:53+08:00",
+  "generated_at": "2026-06-26T17:59:51+08:00",
   "as_of_date": "2026-06-26",
   "method": "历史推荐快照归因：按主题、买入信号、状态、资金流、筹码、全主板排名、接入价偏离等维度，计算后续收益相对同期推荐池均值的超额收益；样本少时做收缩，单股反馈分封顶。",
   "horizons": [
@@ -16,43 +16,43 @@
   "min_strong_samples": 8,
   "summary": {
     "factor_count": 35,
-    "positive_factor_count": 13,
-    "negative_factor_count": 15,
+    "positive_factor_count": 14,
+    "negative_factor_count": 14,
     "top_positive": [
-      {
-        "id": "theme_group:AI半导体",
-        "dimension": "theme_group",
-        "value": "AI半导体",
-        "label": "主题分组=AI半导体",
-        "sample_count": 12,
-        "weighted_sample_count": 10.1,
-        "avg_return_pct": 3.06,
-        "avg_excess_return_pct": 1.93,
-        "shrunk_excess_return_pct": 1.16,
-        "hit_rate_pct": 72.68,
-        "confidence": 0.6,
-        "score_effect": 0.29,
-        "horizons": [
-          1,
-          3
-        ]
-      },
       {
         "id": "layer_rank:前50",
         "dimension": "layer_rank",
         "value": "前50",
         "label": "全主板排名=前50",
-        "sample_count": 11,
-        "weighted_sample_count": 8.45,
-        "avg_return_pct": 1.63,
-        "avg_excess_return_pct": 1.82,
-        "shrunk_excess_return_pct": 1.05,
-        "hit_rate_pct": 71.05,
-        "confidence": 0.579,
-        "score_effect": 0.263,
+        "sample_count": 12,
+        "weighted_sample_count": 8.9,
+        "avg_return_pct": 1.18,
+        "avg_excess_return_pct": 1.9,
+        "shrunk_excess_return_pct": 1.14,
+        "hit_rate_pct": 72.51,
+        "confidence": 0.6,
+        "score_effect": 0.284,
         "horizons": [
           1,
           5
+        ]
+      },
+      {
+        "id": "theme_group:AI半导体",
+        "dimension": "theme_group",
+        "value": "AI半导体",
+        "label": "主题分组=AI半导体",
+        "sample_count": 11,
+        "weighted_sample_count": 9.53,
+        "avg_return_pct": 2.79,
+        "avg_excess_return_pct": 1.7,
+        "shrunk_excess_return_pct": 0.98,
+        "hit_rate_pct": 71.03,
+        "confidence": 0.579,
+        "score_effect": 0.246,
+        "horizons": [
+          1,
+          3
         ]
       },
       {
@@ -62,15 +62,34 @@
         "label": "接入价偏离=明显高于接入价",
         "sample_count": 9,
         "weighted_sample_count": 7.71,
-        "avg_return_pct": 1.7,
-        "avg_excess_return_pct": 1.73,
-        "shrunk_excess_return_pct": 0.92,
+        "avg_return_pct": 1.58,
+        "avg_excess_return_pct": 1.72,
+        "shrunk_excess_return_pct": 0.91,
         "hit_rate_pct": 66.29,
         "confidence": 0.51,
-        "score_effect": 0.23,
+        "score_effect": 0.228,
         "horizons": [
           1,
           3
+        ]
+      },
+      {
+        "id": "fund_flow:资金温和流入",
+        "dimension": "fund_flow",
+        "value": "资金温和流入",
+        "label": "资金流=资金温和流入",
+        "sample_count": 17,
+        "weighted_sample_count": 10.4,
+        "avg_return_pct": 1.78,
+        "avg_excess_return_pct": 0.88,
+        "shrunk_excess_return_pct": 0.6,
+        "hit_rate_pct": 45.88,
+        "confidence": 0.68,
+        "score_effect": 0.149,
+        "horizons": [
+          1,
+          3,
+          5
         ]
       },
       {
@@ -80,29 +99,12 @@
         "label": "买入信号=可突破试探",
         "sample_count": 4,
         "weighted_sample_count": 3.88,
-        "avg_return_pct": 0.44,
-        "avg_excess_return_pct": 1.71,
-        "shrunk_excess_return_pct": 0.57,
+        "avg_return_pct": 0.22,
+        "avg_excess_return_pct": 1.52,
+        "shrunk_excess_return_pct": 0.51,
         "hit_rate_pct": 74.23,
         "confidence": 0.162,
-        "score_effect": 0.143,
-        "horizons": [
-          1
-        ]
-      },
-      {
-        "id": "status:突破确认",
-        "dimension": "status",
-        "value": "突破确认",
-        "label": "状态=突破确认",
-        "sample_count": 4,
-        "weighted_sample_count": 3.88,
-        "avg_return_pct": 0.44,
-        "avg_excess_return_pct": 1.71,
-        "shrunk_excess_return_pct": 0.57,
-        "hit_rate_pct": 74.23,
-        "confidence": 0.162,
-        "score_effect": 0.143,
+        "score_effect": 0.127,
         "horizons": [
           1
         ]
@@ -114,14 +116,14 @@
         "dimension": "theme_group",
         "value": "资源周期",
         "label": "主题分组=资源周期",
-        "sample_count": 5,
-        "weighted_sample_count": 2.85,
-        "avg_return_pct": 0.3,
-        "avg_excess_return_pct": -2.35,
-        "shrunk_excess_return_pct": -0.9,
-        "hit_rate_pct": 21.07,
-        "confidence": 0.137,
-        "score_effect": -0.226,
+        "sample_count": 6,
+        "weighted_sample_count": 3.29,
+        "avg_return_pct": -1.96,
+        "avg_excess_return_pct": -3.08,
+        "shrunk_excess_return_pct": -1.32,
+        "hit_rate_pct": 18.21,
+        "confidence": 0.176,
+        "score_effect": -0.33,
         "horizons": [
           1,
           5
@@ -132,52 +134,14 @@
         "dimension": "fund_flow",
         "value": "资金中性",
         "label": "资金流=资金中性",
-        "sample_count": 5,
-        "weighted_sample_count": 3.2,
-        "avg_return_pct": -2.93,
-        "avg_excess_return_pct": -2.21,
-        "shrunk_excess_return_pct": -0.85,
-        "hit_rate_pct": 49.27,
-        "confidence": 0.154,
-        "score_effect": -0.212,
-        "horizons": [
-          1,
-          3,
-          5
-        ]
-      },
-      {
-        "id": "theme_group:电力设备",
-        "dimension": "theme_group",
-        "value": "电力设备",
-        "label": "主题分组=电力设备",
-        "sample_count": 9,
-        "weighted_sample_count": 5.64,
-        "avg_return_pct": -0.72,
-        "avg_excess_return_pct": -1.5,
-        "shrunk_excess_return_pct": -0.79,
-        "hit_rate_pct": 29.17,
-        "confidence": 0.374,
-        "score_effect": -0.198,
-        "horizons": [
-          1,
-          3,
-          5
-        ]
-      },
-      {
-        "id": "layer_rank:前120",
-        "dimension": "layer_rank",
-        "value": "前120",
-        "label": "全主板排名=前120",
-        "sample_count": 9,
-        "weighted_sample_count": 6.36,
-        "avg_return_pct": 0.12,
-        "avg_excess_return_pct": -1.37,
-        "shrunk_excess_return_pct": -0.73,
-        "hit_rate_pct": 13.84,
-        "confidence": 0.421,
-        "score_effect": -0.181,
+        "sample_count": 4,
+        "weighted_sample_count": 2.62,
+        "avg_return_pct": -5.14,
+        "avg_excess_return_pct": -3.62,
+        "shrunk_excess_return_pct": -1.21,
+        "hit_rate_pct": 38.11,
+        "confidence": 0.109,
+        "score_effect": -0.302,
         "horizons": [
           1,
           3,
@@ -189,17 +153,55 @@
         "dimension": "layer_rank",
         "value": "300名以后",
         "label": "全主板排名=300名以后",
-        "sample_count": 10,
-        "weighted_sample_count": 7.21,
-        "avg_return_pct": -1.29,
-        "avg_excess_return_pct": -1.29,
-        "shrunk_excess_return_pct": -0.72,
-        "hit_rate_pct": 51.37,
-        "confidence": 0.501,
-        "score_effect": -0.179,
+        "sample_count": 9,
+        "weighted_sample_count": 6.63,
+        "avg_return_pct": -2.09,
+        "avg_excess_return_pct": -1.62,
+        "shrunk_excess_return_pct": -0.86,
+        "hit_rate_pct": 55.84,
+        "confidence": 0.439,
+        "score_effect": -0.215,
         "horizons": [
           1,
           3
+        ]
+      },
+      {
+        "id": "layer_rank:前120",
+        "dimension": "layer_rank",
+        "value": "前120",
+        "label": "全主板排名=前120",
+        "sample_count": 9,
+        "weighted_sample_count": 6.36,
+        "avg_return_pct": 0.13,
+        "avg_excess_return_pct": -1.23,
+        "shrunk_excess_return_pct": -0.65,
+        "hit_rate_pct": 13.84,
+        "confidence": 0.421,
+        "score_effect": -0.163,
+        "horizons": [
+          1,
+          3,
+          5
+        ]
+      },
+      {
+        "id": "entry_gap:略高于接入价",
+        "dimension": "entry_gap",
+        "value": "略高于接入价",
+        "label": "接入价偏离=略高于接入价",
+        "sample_count": 29,
+        "weighted_sample_count": 18.82,
+        "avg_return_pct": -0.44,
+        "avg_excess_return_pct": -0.71,
+        "shrunk_excess_return_pct": -0.55,
+        "hit_rate_pct": 41.04,
+        "confidence": 0.784,
+        "score_effect": -0.138,
+        "horizons": [
+          1,
+          3,
+          5
         ]
       }
     ],
@@ -207,72 +209,18 @@
   },
   "factor_stats": [
     {
-      "id": "theme_group:AI半导体",
-      "dimension": "theme_group",
-      "value": "AI半导体",
-      "label": "主题分组=AI半导体",
-      "sample_count": 12,
-      "weighted_sample_count": 10.1,
-      "avg_return_pct": 3.06,
-      "avg_excess_return_pct": 1.93,
-      "shrunk_excess_return_pct": 1.16,
-      "hit_rate_pct": 72.68,
-      "confidence": 0.6,
-      "score_effect": 0.29,
-      "horizons": [
-        1,
-        3
-      ]
-    },
-    {
-      "id": "layer_rank:前50",
-      "dimension": "layer_rank",
-      "value": "前50",
-      "label": "全主板排名=前50",
-      "sample_count": 11,
-      "weighted_sample_count": 8.45,
-      "avg_return_pct": 1.63,
-      "avg_excess_return_pct": 1.82,
-      "shrunk_excess_return_pct": 1.05,
-      "hit_rate_pct": 71.05,
-      "confidence": 0.579,
-      "score_effect": 0.263,
-      "horizons": [
-        1,
-        5
-      ]
-    },
-    {
-      "id": "entry_gap:明显高于接入价",
-      "dimension": "entry_gap",
-      "value": "明显高于接入价",
-      "label": "接入价偏离=明显高于接入价",
-      "sample_count": 9,
-      "weighted_sample_count": 7.71,
-      "avg_return_pct": 1.7,
-      "avg_excess_return_pct": 1.73,
-      "shrunk_excess_return_pct": 0.92,
-      "hit_rate_pct": 66.29,
-      "confidence": 0.51,
-      "score_effect": 0.23,
-      "horizons": [
-        1,
-        3
-      ]
-    },
-    {
       "id": "theme_group:资源周期",
       "dimension": "theme_group",
       "value": "资源周期",
       "label": "主题分组=资源周期",
-      "sample_count": 5,
-      "weighted_sample_count": 2.85,
-      "avg_return_pct": 0.3,
-      "avg_excess_return_pct": -2.35,
-      "shrunk_excess_return_pct": -0.9,
-      "hit_rate_pct": 21.07,
-      "confidence": 0.137,
-      "score_effect": -0.226,
+      "sample_count": 6,
+      "weighted_sample_count": 3.29,
+      "avg_return_pct": -1.96,
+      "avg_excess_return_pct": -3.08,
+      "shrunk_excess_return_pct": -1.32,
+      "hit_rate_pct": 18.21,
+      "confidence": 0.176,
+      "score_effect": -0.33,
       "horizons": [
         1,
         5
@@ -283,14 +231,14 @@
       "dimension": "fund_flow",
       "value": "资金中性",
       "label": "资金流=资金中性",
-      "sample_count": 5,
-      "weighted_sample_count": 3.2,
-      "avg_return_pct": -2.93,
-      "avg_excess_return_pct": -2.21,
-      "shrunk_excess_return_pct": -0.85,
-      "hit_rate_pct": 49.27,
-      "confidence": 0.154,
-      "score_effect": -0.212,
+      "sample_count": 4,
+      "weighted_sample_count": 2.62,
+      "avg_return_pct": -5.14,
+      "avg_excess_return_pct": -3.62,
+      "shrunk_excess_return_pct": -1.21,
+      "hit_rate_pct": 38.11,
+      "confidence": 0.109,
+      "score_effect": -0.302,
       "horizons": [
         1,
         3,
@@ -298,22 +246,75 @@
       ]
     },
     {
-      "id": "theme_group:电力设备",
-      "dimension": "theme_group",
-      "value": "电力设备",
-      "label": "主题分组=电力设备",
-      "sample_count": 9,
-      "weighted_sample_count": 5.64,
-      "avg_return_pct": -0.72,
-      "avg_excess_return_pct": -1.5,
-      "shrunk_excess_return_pct": -0.79,
-      "hit_rate_pct": 29.17,
-      "confidence": 0.374,
-      "score_effect": -0.198,
+      "id": "layer_rank:前50",
+      "dimension": "layer_rank",
+      "value": "前50",
+      "label": "全主板排名=前50",
+      "sample_count": 12,
+      "weighted_sample_count": 8.9,
+      "avg_return_pct": 1.18,
+      "avg_excess_return_pct": 1.9,
+      "shrunk_excess_return_pct": 1.14,
+      "hit_rate_pct": 72.51,
+      "confidence": 0.6,
+      "score_effect": 0.284,
       "horizons": [
         1,
-        3,
         5
+      ]
+    },
+    {
+      "id": "theme_group:AI半导体",
+      "dimension": "theme_group",
+      "value": "AI半导体",
+      "label": "主题分组=AI半导体",
+      "sample_count": 11,
+      "weighted_sample_count": 9.53,
+      "avg_return_pct": 2.79,
+      "avg_excess_return_pct": 1.7,
+      "shrunk_excess_return_pct": 0.98,
+      "hit_rate_pct": 71.03,
+      "confidence": 0.579,
+      "score_effect": 0.246,
+      "horizons": [
+        1,
+        3
+      ]
+    },
+    {
+      "id": "entry_gap:明显高于接入价",
+      "dimension": "entry_gap",
+      "value": "明显高于接入价",
+      "label": "接入价偏离=明显高于接入价",
+      "sample_count": 9,
+      "weighted_sample_count": 7.71,
+      "avg_return_pct": 1.58,
+      "avg_excess_return_pct": 1.72,
+      "shrunk_excess_return_pct": 0.91,
+      "hit_rate_pct": 66.29,
+      "confidence": 0.51,
+      "score_effect": 0.228,
+      "horizons": [
+        1,
+        3
+      ]
+    },
+    {
+      "id": "layer_rank:300名以后",
+      "dimension": "layer_rank",
+      "value": "300名以后",
+      "label": "全主板排名=300名以后",
+      "sample_count": 9,
+      "weighted_sample_count": 6.63,
+      "avg_return_pct": -2.09,
+      "avg_excess_return_pct": -1.62,
+      "shrunk_excess_return_pct": -0.86,
+      "hit_rate_pct": 55.84,
+      "confidence": 0.439,
+      "score_effect": -0.215,
+      "horizons": [
+        1,
+        3
       ]
     },
     {
@@ -323,12 +324,12 @@
       "label": "全主板排名=前120",
       "sample_count": 9,
       "weighted_sample_count": 6.36,
-      "avg_return_pct": 0.12,
-      "avg_excess_return_pct": -1.37,
-      "shrunk_excess_return_pct": -0.73,
+      "avg_return_pct": 0.13,
+      "avg_excess_return_pct": -1.23,
+      "shrunk_excess_return_pct": -0.65,
       "hit_rate_pct": 13.84,
       "confidence": 0.421,
-      "score_effect": -0.181,
+      "score_effect": -0.163,
       "horizons": [
         1,
         3,
@@ -336,87 +337,18 @@
       ]
     },
     {
-      "id": "layer_rank:300名以后",
-      "dimension": "layer_rank",
-      "value": "300名以后",
-      "label": "全主板排名=300名以后",
-      "sample_count": 10,
-      "weighted_sample_count": 7.21,
-      "avg_return_pct": -1.29,
-      "avg_excess_return_pct": -1.29,
-      "shrunk_excess_return_pct": -0.72,
-      "hit_rate_pct": 51.37,
-      "confidence": 0.501,
-      "score_effect": -0.179,
-      "horizons": [
-        1,
-        3
-      ]
-    },
-    {
-      "id": "buy_signal:可突破试探",
-      "dimension": "buy_signal",
-      "value": "可突破试探",
-      "label": "买入信号=可突破试探",
-      "sample_count": 4,
-      "weighted_sample_count": 3.88,
-      "avg_return_pct": 0.44,
-      "avg_excess_return_pct": 1.71,
-      "shrunk_excess_return_pct": 0.57,
-      "hit_rate_pct": 74.23,
-      "confidence": 0.162,
-      "score_effect": 0.143,
-      "horizons": [
-        1
-      ]
-    },
-    {
-      "id": "status:突破确认",
-      "dimension": "status",
-      "value": "突破确认",
-      "label": "状态=突破确认",
-      "sample_count": 4,
-      "weighted_sample_count": 3.88,
-      "avg_return_pct": 0.44,
-      "avg_excess_return_pct": 1.71,
-      "shrunk_excess_return_pct": 0.57,
-      "hit_rate_pct": 74.23,
-      "confidence": 0.162,
-      "score_effect": 0.143,
-      "horizons": [
-        1
-      ]
-    },
-    {
-      "id": "theme_group:消费医药",
-      "dimension": "theme_group",
-      "value": "消费医药",
-      "label": "主题分组=消费医药",
-      "sample_count": 1,
-      "weighted_sample_count": 0.58,
-      "avg_return_pct": -5.0,
-      "avg_excess_return_pct": -5.14,
-      "shrunk_excess_return_pct": -0.57,
-      "hit_rate_pct": 0.0,
-      "confidence": 0.008,
-      "score_effect": -0.143,
-      "horizons": [
-        3
-      ]
-    },
-    {
       "id": "fund_flow:资金温和流入",
       "dimension": "fund_flow",
       "value": "资金温和流入",
       "label": "资金流=资金温和流入",
-      "sample_count": 15,
-      "weighted_sample_count": 9.51,
-      "avg_return_pct": 2.91,
-      "avg_excess_return_pct": 0.87,
-      "shrunk_excess_return_pct": 0.57,
-      "hit_rate_pct": 45.49,
-      "confidence": 0.652,
-      "score_effect": 0.142,
+      "sample_count": 17,
+      "weighted_sample_count": 10.4,
+      "avg_return_pct": 1.78,
+      "avg_excess_return_pct": 0.88,
+      "shrunk_excess_return_pct": 0.6,
+      "hit_rate_pct": 45.88,
+      "confidence": 0.68,
+      "score_effect": 0.149,
       "horizons": [
         1,
         3,
@@ -429,13 +361,13 @@
       "value": "略高于接入价",
       "label": "接入价偏离=略高于接入价",
       "sample_count": 29,
-      "weighted_sample_count": 19.51,
-      "avg_return_pct": 0.07,
-      "avg_excess_return_pct": -0.69,
-      "shrunk_excess_return_pct": -0.54,
-      "hit_rate_pct": 37.31,
+      "weighted_sample_count": 18.82,
+      "avg_return_pct": -0.44,
+      "avg_excess_return_pct": -0.71,
+      "shrunk_excess_return_pct": -0.55,
+      "hit_rate_pct": 41.04,
       "confidence": 0.784,
-      "score_effect": -0.134,
+      "score_effect": -0.138,
       "horizons": [
         1,
         3,
@@ -443,21 +375,55 @@
       ]
     },
     {
-      "id": "fund_flow:资金偏流出",
-      "dimension": "fund_flow",
-      "value": "资金偏流出",
-      "label": "资金流=资金偏流出",
+      "id": "chip:筹码较健康",
+      "dimension": "chip",
+      "value": "筹码较健康",
+      "label": "筹码=筹码较健康",
       "sample_count": 5,
-      "weighted_sample_count": 3.9,
-      "avg_return_pct": -0.74,
-      "avg_excess_return_pct": -1.35,
-      "shrunk_excess_return_pct": -0.52,
-      "hit_rate_pct": 39.71,
-      "confidence": 0.188,
-      "score_effect": -0.13,
+      "weighted_sample_count": 3.58,
+      "avg_return_pct": 0.09,
+      "avg_excess_return_pct": -1.37,
+      "shrunk_excess_return_pct": -0.53,
+      "hit_rate_pct": 37.72,
+      "confidence": 0.172,
+      "score_effect": -0.132,
       "horizons": [
         1,
         3
+      ]
+    },
+    {
+      "id": "buy_signal:可突破试探",
+      "dimension": "buy_signal",
+      "value": "可突破试探",
+      "label": "买入信号=可突破试探",
+      "sample_count": 4,
+      "weighted_sample_count": 3.88,
+      "avg_return_pct": 0.22,
+      "avg_excess_return_pct": 1.52,
+      "shrunk_excess_return_pct": 0.51,
+      "hit_rate_pct": 74.23,
+      "confidence": 0.162,
+      "score_effect": 0.127,
+      "horizons": [
+        1
+      ]
+    },
+    {
+      "id": "status:突破确认",
+      "dimension": "status",
+      "value": "突破确认",
+      "label": "状态=突破确认",
+      "sample_count": 4,
+      "weighted_sample_count": 3.88,
+      "avg_return_pct": 0.22,
+      "avg_excess_return_pct": 1.52,
+      "shrunk_excess_return_pct": 0.51,
+      "hit_rate_pct": 74.23,
+      "confidence": 0.162,
+      "score_effect": 0.127,
+      "horizons": [
+        1
       ]
     },
     {
@@ -478,21 +444,56 @@
       ]
     },
     {
+      "id": "chip:筹码压力较大",
+      "dimension": "chip",
+      "value": "筹码压力较大",
+      "label": "筹码=筹码压力较大",
+      "sample_count": 2,
+      "weighted_sample_count": 1.88,
+      "avg_return_pct": 2.72,
+      "avg_excess_return_pct": 2.48,
+      "shrunk_excess_return_pct": 0.5,
+      "hit_rate_pct": 100.0,
+      "confidence": 0.047,
+      "score_effect": 0.124,
+      "horizons": [
+        1
+      ]
+    },
+    {
       "id": "theme_group:券商",
       "dimension": "theme_group",
       "value": "券商",
       "label": "主题分组=券商",
       "sample_count": 2,
       "weighted_sample_count": 1.45,
-      "avg_return_pct": -1.05,
-      "avg_excess_return_pct": 2.33,
-      "shrunk_excess_return_pct": 0.47,
+      "avg_return_pct": -1.58,
+      "avg_excess_return_pct": 2.4,
+      "shrunk_excess_return_pct": 0.48,
       "hit_rate_pct": 30.9,
       "confidence": 0.036,
-      "score_effect": 0.117,
+      "score_effect": 0.12,
       "horizons": [
         1,
         5
+      ]
+    },
+    {
+      "id": "fund_flow:资金偏流出",
+      "dimension": "fund_flow",
+      "value": "资金偏流出",
+      "label": "资金流=资金偏流出",
+      "sample_count": 5,
+      "weighted_sample_count": 3.9,
+      "avg_return_pct": -0.8,
+      "avg_excess_return_pct": -1.22,
+      "shrunk_excess_return_pct": -0.47,
+      "hit_rate_pct": 54.51,
+      "confidence": 0.188,
+      "score_effect": -0.117,
+      "horizons": [
+        1,
+        3
       ]
     },
     {
@@ -502,15 +503,51 @@
       "label": "筹码=筹码中性偏好",
       "sample_count": 7,
       "weighted_sample_count": 6.11,
-      "avg_return_pct": -0.94,
-      "avg_excess_return_pct": -0.95,
-      "shrunk_excess_return_pct": -0.44,
-      "hit_rate_pct": 43.43,
+      "avg_return_pct": -1.13,
+      "avg_excess_return_pct": -0.99,
+      "shrunk_excess_return_pct": -0.46,
+      "hit_rate_pct": 52.88,
       "confidence": 0.357,
-      "score_effect": -0.11,
+      "score_effect": -0.116,
       "horizons": [
         1,
         3
+      ]
+    },
+    {
+      "id": "theme_group:消费医药",
+      "dimension": "theme_group",
+      "value": "消费医药",
+      "label": "主题分组=消费医药",
+      "sample_count": 1,
+      "weighted_sample_count": 0.58,
+      "avg_return_pct": -5.17,
+      "avg_excess_return_pct": -4.04,
+      "shrunk_excess_return_pct": -0.45,
+      "hit_rate_pct": 0.0,
+      "confidence": 0.008,
+      "score_effect": -0.112,
+      "horizons": [
+        3
+      ]
+    },
+    {
+      "id": "theme_group:电力设备",
+      "dimension": "theme_group",
+      "value": "电力设备",
+      "label": "主题分组=电力设备",
+      "sample_count": 10,
+      "weighted_sample_count": 6.09,
+      "avg_return_pct": -0.96,
+      "avg_excess_return_pct": -0.79,
+      "shrunk_excess_return_pct": -0.44,
+      "hit_rate_pct": 34.37,
+      "confidence": 0.423,
+      "score_effect": -0.11,
+      "horizons": [
+        1,
+        3,
+        5
       ]
     },
     {
@@ -520,52 +557,32 @@
       "label": "主题分组=创新药",
       "sample_count": 4,
       "weighted_sample_count": 3.23,
-      "avg_return_pct": -0.27,
-      "avg_excess_return_pct": -0.96,
-      "shrunk_excess_return_pct": -0.32,
-      "hit_rate_pct": 54.91,
+      "avg_return_pct": -0.45,
+      "avg_excess_return_pct": -0.91,
+      "shrunk_excess_return_pct": -0.3,
+      "hit_rate_pct": 72.77,
       "confidence": 0.135,
-      "score_effect": -0.08,
+      "score_effect": -0.076,
       "horizons": [
         1,
         3
       ]
     },
     {
-      "id": "chip:筹码较健康",
-      "dimension": "chip",
-      "value": "筹码较健康",
-      "label": "筹码=筹码较健康",
-      "sample_count": 6,
-      "weighted_sample_count": 4.16,
-      "avg_return_pct": 1.0,
-      "avg_excess_return_pct": -0.63,
-      "shrunk_excess_return_pct": -0.27,
-      "hit_rate_pct": 46.36,
-      "confidence": 0.223,
-      "score_effect": -0.067,
+      "id": "fund_flow:资金明显流入",
+      "dimension": "fund_flow",
+      "value": "资金明显流入",
+      "label": "资金流=资金明显流入",
+      "sample_count": 9,
+      "weighted_sample_count": 7.84,
+      "avg_return_pct": 0.97,
+      "avg_excess_return_pct": 0.52,
+      "shrunk_excess_return_pct": 0.28,
+      "hit_rate_pct": 55.61,
+      "confidence": 0.519,
+      "score_effect": 0.069,
       "horizons": [
-        1,
-        3
-      ]
-    },
-    {
-      "id": "layer_rank:前300",
-      "dimension": "layer_rank",
-      "value": "前300",
-      "label": "全主板排名=前300",
-      "sample_count": 8,
-      "weighted_sample_count": 5.2,
-      "avg_return_pct": 1.78,
-      "avg_excess_return_pct": 0.51,
-      "shrunk_excess_return_pct": 0.26,
-      "hit_rate_pct": 34.61,
-      "confidence": 0.325,
-      "score_effect": 0.064,
-      "horizons": [
-        1,
-        3,
-        5
+        1
       ]
     },
     {
@@ -574,13 +591,13 @@
       "value": "等待触发",
       "label": "买入信号=等待触发",
       "sample_count": 32,
-      "weighted_sample_count": 22.15,
-      "avg_return_pct": 0.85,
-      "avg_excess_return_pct": -0.3,
-      "shrunk_excess_return_pct": -0.24,
-      "hit_rate_pct": 42.93,
+      "weighted_sample_count": 21.46,
+      "avg_return_pct": 0.42,
+      "avg_excess_return_pct": -0.27,
+      "shrunk_excess_return_pct": -0.22,
+      "hit_rate_pct": 46.38,
       "confidence": 0.8,
-      "score_effect": -0.06,
+      "score_effect": -0.055,
       "horizons": [
         1,
         3,
@@ -593,51 +610,17 @@
       "value": "等回踩",
       "label": "状态=等回踩",
       "sample_count": 32,
-      "weighted_sample_count": 22.15,
-      "avg_return_pct": 0.85,
-      "avg_excess_return_pct": -0.3,
-      "shrunk_excess_return_pct": -0.24,
-      "hit_rate_pct": 42.93,
+      "weighted_sample_count": 21.46,
+      "avg_return_pct": 0.42,
+      "avg_excess_return_pct": -0.27,
+      "shrunk_excess_return_pct": -0.22,
+      "hit_rate_pct": 46.38,
       "confidence": 0.8,
-      "score_effect": -0.06,
+      "score_effect": -0.055,
       "horizons": [
         1,
         3,
         5
-      ]
-    },
-    {
-      "id": "fund_flow:资金明显流入",
-      "dimension": "fund_flow",
-      "value": "资金明显流入",
-      "label": "资金流=资金明显流入",
-      "sample_count": 10,
-      "weighted_sample_count": 8.84,
-      "avg_return_pct": 0.53,
-      "avg_excess_return_pct": 0.43,
-      "shrunk_excess_return_pct": 0.24,
-      "hit_rate_pct": 49.32,
-      "confidence": 0.556,
-      "score_effect": 0.059,
-      "horizons": [
-        1
-      ]
-    },
-    {
-      "id": "chip:筹码压力较大",
-      "dimension": "chip",
-      "value": "筹码压力较大",
-      "label": "筹码=筹码压力较大",
-      "sample_count": 3,
-      "weighted_sample_count": 2.88,
-      "avg_return_pct": 0.06,
-      "avg_excess_return_pct": 0.84,
-      "shrunk_excess_return_pct": 0.23,
-      "hit_rate_pct": 65.28,
-      "confidence": 0.098,
-      "score_effect": 0.057,
-      "horizons": [
-        1
       ]
     },
     {
@@ -647,12 +630,12 @@
       "label": "筹码=筹码略有压力",
       "sample_count": 6,
       "weighted_sample_count": 4.81,
-      "avg_return_pct": 0.34,
-      "avg_excess_return_pct": 0.42,
-      "shrunk_excess_return_pct": 0.18,
+      "avg_return_pct": 0.09,
+      "avg_excess_return_pct": 0.49,
+      "shrunk_excess_return_pct": 0.21,
       "hit_rate_pct": 48.9,
       "confidence": 0.258,
-      "score_effect": 0.045,
+      "score_effect": 0.052,
       "horizons": [
         1,
         3
@@ -663,17 +646,52 @@
       "dimension": "theme_group",
       "value": "高端制造",
       "label": "主题分组=高端制造",
-      "sample_count": 2,
-      "weighted_sample_count": 1.58,
-      "avg_return_pct": -2.45,
-      "avg_excess_return_pct": -0.78,
-      "shrunk_excess_return_pct": -0.16,
-      "hit_rate_pct": 36.6,
-      "confidence": 0.039,
-      "score_effect": -0.039,
+      "sample_count": 1,
+      "weighted_sample_count": 0.58,
+      "avg_return_pct": 0.61,
+      "avg_excess_return_pct": 1.74,
+      "shrunk_excess_return_pct": 0.19,
+      "hit_rate_pct": 100.0,
+      "confidence": 0.008,
+      "score_effect": 0.048,
+      "horizons": [
+        3
+      ]
+    },
+    {
+      "id": "fund_flow:资金明显流出",
+      "dimension": "fund_flow",
+      "value": "资金明显流出",
+      "label": "资金流=资金明显流出",
+      "sample_count": 1,
+      "weighted_sample_count": 0.58,
+      "avg_return_pct": 0.61,
+      "avg_excess_return_pct": 1.74,
+      "shrunk_excess_return_pct": 0.19,
+      "hit_rate_pct": 100.0,
+      "confidence": 0.008,
+      "score_effect": 0.048,
+      "horizons": [
+        3
+      ]
+    },
+    {
+      "id": "layer_rank:前300",
+      "dimension": "layer_rank",
+      "value": "前300",
+      "label": "全主板排名=前300",
+      "sample_count": 8,
+      "weighted_sample_count": 4.64,
+      "avg_return_pct": 1.38,
+      "avg_excess_return_pct": 0.37,
+      "shrunk_excess_return_pct": 0.18,
+      "hit_rate_pct": 38.73,
+      "confidence": 0.29,
+      "score_effect": 0.046,
       "horizons": [
         1,
-        3
+        3,
+        5
       ]
     },
     {
@@ -694,35 +712,18 @@
       ]
     },
     {
-      "id": "fund_flow:资金明显流出",
-      "dimension": "fund_flow",
-      "value": "资金明显流出",
-      "label": "资金流=资金明显流出",
-      "sample_count": 1,
-      "weighted_sample_count": 0.58,
-      "avg_return_pct": 0.69,
-      "avg_excess_return_pct": 0.55,
-      "shrunk_excess_return_pct": 0.06,
-      "hit_rate_pct": 100.0,
-      "confidence": 0.008,
-      "score_effect": 0.015,
-      "horizons": [
-        3
-      ]
-    },
-    {
       "id": "price_source:spot_snapshot",
       "dimension": "price_source",
       "value": "spot_snapshot",
       "label": "价格源=spot_snapshot",
-      "sample_count": 25,
-      "weighted_sample_count": 20.03,
-      "avg_return_pct": 0.07,
-      "avg_excess_return_pct": -0.0,
-      "shrunk_excess_return_pct": -0.0,
-      "hit_rate_pct": 48.4,
-      "confidence": 0.758,
-      "score_effect": -0.0,
+      "sample_count": 23,
+      "weighted_sample_count": 18.45,
+      "avg_return_pct": 0.01,
+      "avg_excess_return_pct": 0.0,
+      "shrunk_excess_return_pct": 0.0,
+      "hit_rate_pct": 52.54,
+      "confidence": 0.742,
+      "score_effect": 0.0,
       "horizons": [
         1,
         3
@@ -733,13 +734,13 @@
       "dimension": "chip",
       "value": "筹码暂缺",
       "label": "筹码=筹码暂缺",
-      "sample_count": 15,
-      "weighted_sample_count": 8.38,
-      "avg_return_pct": 0.85,
+      "sample_count": 17,
+      "weighted_sample_count": 9.27,
+      "avg_return_pct": -0.24,
       "avg_excess_return_pct": -0.0,
       "shrunk_excess_return_pct": -0.0,
-      "hit_rate_pct": 32.16,
-      "confidence": 0.652,
+      "hit_rate_pct": 33.88,
+      "confidence": 0.68,
       "score_effect": -0.0,
       "horizons": [
         1,
@@ -752,13 +753,13 @@
       "dimension": "price_source",
       "value": "未知",
       "label": "价格源=未知",
-      "sample_count": 13,
-      "weighted_sample_count": 7.19,
-      "avg_return_pct": 1.83,
+      "sample_count": 15,
+      "weighted_sample_count": 8.08,
+      "avg_return_pct": 0.46,
       "avg_excess_return_pct": -0.0,
       "shrunk_excess_return_pct": -0.0,
-      "hit_rate_pct": 37.48,
-      "confidence": 0.556,
+      "hit_rate_pct": 38.87,
+      "confidence": 0.652,
       "score_effect": -0.0,
       "horizons": [
         1,
