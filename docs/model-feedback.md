@@ -98,3 +98,22 @@ GitHub Actions 会在工作日北京时间 10:00、14:30、20:00 自动运行 `s
 工作流会先同步远端最新 `main`，生成数据后提交 `data/` 目录，推送前再 rebase 一次，降低自动刷新和人工提交之间的冲突概率。
 
 同一只股票如果调出后再次进入观察池，不会重置首次推荐锚点。回访链条会优先保留 `review.json` 中最早的 `first_recommend_date` 和 `first_recommend_price`；同一天多次刷新时，内部使用“日期+来源”记录，避免晚间重新入池价格覆盖上午首次推荐价。
+
+## 接入价有效性反馈
+
+新增 `entry_effectiveness` 层，专门回答“按当时推荐接入价/可买价介入后，是否容易出现较大回撤”：
+
+- 样本来源：历史 `data/history/*.json` 快照中，处于可买入状态，或现价贴近接入价的记录。
+- 计算口径：按当时 `buyable_price` 优先，其次 `recommended_entry_price` 作为接入参考价。
+- 复盘指标：接入后收益、最大不利回撤、命中率、暴跌率。
+- 暴跌定义：后续收益低于 `-5%`，或期间最大不利回撤低于 `-7%`。
+- 使用方式：只用于调整接入价和可买价；风险偏高时会下压价格，极端时取消当前 `is_buyable_now` 标记，改为 `risk_wait`。
+
+新增字段：
+
+- `model_feedback.entry_effectiveness`：全局接入价有效性统计。
+- `entry_safety_adjustment_pct`：单股接入安全层带来的价格调整。
+- `entry_safety_label` / `entry_safety_note`：单股接入风险解释。
+- `entry_safety_block_buy`：是否因历史接入风险取消当前可买入标记。
+- `review.records[].entry_return_from_first_entry_pct`：按首次接入参考价计算的回访收益。
+- `review.records[].entry_drawdown_from_first_entry_pct`：按首次接入参考价计算的回访最大不利回撤。

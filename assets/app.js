@@ -44,6 +44,7 @@ const returnClass = (value) => {
 
 const buySignalClass = (key) => {
   if (key === "pullback_buy" || key === "breakout_buy") return "buy-now";
+  if (key === "risk_wait") return "buy-avoid";
   if (key === "avoid") return "buy-avoid";
   return "buy-wait";
 };
@@ -90,6 +91,21 @@ const formatPriceFeedback = (stock) => {
   return `${stock.price_feedback_label || "价格纪律不变"}：${adjustment}。${stock.price_feedback_note || ""}`;
 };
 
+const formatEntrySafety = (stock) => {
+  const adjustment = formatPercent(stock.entry_safety_adjustment_pct, 3);
+  const factors = stock.entry_safety_factors || [];
+  const factorText = factors.length
+    ? factors
+        .slice(0, 2)
+        .map(
+          (factor) =>
+            `${factor.label}: ${formatPercent(factor.price_adjustment_pct, 3)}, 接入后${formatPercent(factor.avg_entry_return_pct)}, 回撤${formatPercent(factor.avg_adverse_drawdown_pct)}, 暴跌率${formatPercent(factor.crash_rate_pct)}`
+        )
+        .join("；")
+    : stock.entry_safety_note || "历史接入价样本不足。";
+  return `${stock.entry_safety_label || "接入样本不足"}：安全调整 ${adjustment}。${factorText}`;
+};
+
 const byId = (id) => document.getElementById(id);
 
 async function loadPool() {
@@ -127,10 +143,15 @@ function render() {
   byId("averageReturn").className = returnClass(averageReturn);
   byId("modelDescription").textContent = data.model?.description || byId("modelDescription").textContent;
   const feedback = data.model_feedback || {};
+  const entryFeedback = feedback.entry_effectiveness || {};
   byId("feedbackStatus").textContent = feedback.schema_version
     ? `反馈模型：${feedback.confidence || "低"}置信；样本 ${feedback.observation_count ?? 0} 条；因子 ${feedback.summary?.factor_count ?? 0} 个；单股修正上限 ±${formatNumber(feedback.score_cap, 2)} 分。${feedback.summary?.note || ""}`
     : "反馈模型：等待历史样本积累。";
   byId("sourceStatus").textContent = `更新时间：${data.generated_at || "-"}；数据源：${data.source_status?.quotes || "-"}；${data.source_status?.note || ""}`;
+
+  if (feedback.schema_version && entryFeedback.schema_version) {
+    byId("feedbackStatus").textContent += ` 接入有效性：样本 ${entryFeedback.observation_count ?? 0} 条；安全因子 ${entryFeedback.summary?.factor_count ?? 0} 个。${entryFeedback.summary?.note || ""}`;
+  }
 
   const stocks = (data.stocks || []).filter((stock) => {
     if (state.filter === "all") return true;
@@ -197,6 +218,8 @@ function createStockCard(stock) {
     `${stock.feedback_label || "回访样本不足"}：反馈分 ${formatSignedNumber(stock.feedback_bonus, 3)}，整体置信 ${stock.feedback_confidence || "低"}。${formatFeedbackFactors(stock)}。${formatPriceFeedback(stock)}`;
   node.querySelector(".entry-detail").textContent =
     `推荐接入价 ${formatNumber(stock.recommended_entry_price)}，接入区间 ${formatNumber(stock.entry_price_lower)}-${formatNumber(stock.entry_price_upper)}，现价偏离 ${formatPercent(stock.entry_gap_pct)}。原接入价 ${formatNumber(stock.base_recommended_entry_price)}。${stock.entry_price_note || ""}`;
+  node.querySelector(".feedback-detail").textContent += ` ${formatEntrySafety(stock)}`;
+  node.querySelector(".entry-detail").textContent += ` ${formatEntrySafety(stock)}`;
   node.querySelector(".breakout-detail").textContent =
     `突破确认价 ${formatNumber(stock.breakout_confirm_price)}，前高压力 ${formatNumber(stock.resistance_price)}，距现价 ${formatPercent(stock.breakout_gap_pct)}。${stock.breakout_price_note || ""}`;
   node.querySelector(".first-recommend").textContent = tracking.first_recommend_date
@@ -251,6 +274,9 @@ function createReviewRow(record) {
   node.querySelector(".review-return").classList.add(returnClass(reviewReturn));
   node.querySelector(".review-first").textContent = `${record.first_recommend_date || "-"} / ${formatNumber(record.first_recommend_price)}`;
   node.querySelector(".review-status").textContent = record.review_status || "-";
+  if (record.entry_return_from_first_entry_pct !== null && record.entry_return_from_first_entry_pct !== undefined) {
+    node.querySelector(".review-status").textContent += ` · 接入${formatPercent(record.entry_return_from_first_entry_pct)} / 回撤${formatPercent(record.entry_drawdown_from_first_entry_pct)}`;
+  }
   node.title = record.comment || "";
 
   return node;

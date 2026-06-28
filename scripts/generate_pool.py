@@ -30,6 +30,11 @@ UNIVERSE_EXPORT_LIMIT = 120
 FEEDBACK_HORIZONS = (1, 3, 5, 10)
 FEEDBACK_SCORE_CAP = 0.8
 FEEDBACK_MIN_STRONG_SAMPLES = 8
+ENTRY_FEEDBACK_MIN_SAMPLES = 6
+ENTRY_FEEDBACK_PRICE_CAP_DOWN = -2.4
+ENTRY_FEEDBACK_PRICE_CAP_UP = 0.6
+ENTRY_CRASH_RETURN_THRESHOLD = -5.0
+ENTRY_ADVERSE_DRAW_THRESHOLD = -7.0
 MAINBOARD_PREFIXES = ("000", "001", "002", "003", "600", "601", "603", "605")
 EASTMONEY_FUND_FLOW_URL = "https://push2.eastmoney.com/api/qt/clist/get"
 EASTMONEY_FUND_FLOW_FS = "m:0+t:6+f:!2,m:0+t:13+f:!2,m:0+t:80+f:!2,m:1+t:2+f:!2,m:1+t:23+f:!2,m:0+t:7+f:!2,m:1+t:3+f:!2"
@@ -76,6 +81,15 @@ FEEDBACK_DIMENSION_WEIGHTS = {
     "layer_rank": 0.65,
     "entry_gap": 0.7,
     "price_source": 0.35,
+}
+ENTRY_EFFECTIVENESS_DIMENSION_WEIGHTS = {
+    "buy_signal": 1.25,
+    "status": 1.0,
+    "entry_gap": 1.1,
+    "fund_flow": 0.85,
+    "chip": 0.85,
+    "theme_group": 0.65,
+    "layer_rank": 0.45,
 }
 
 
@@ -1199,6 +1213,47 @@ def stock_feedback_factors(stock: dict[str, Any]) -> list[dict[str, str]]:
     ]
 
 
+def entry_effectiveness_factors(stock: dict[str, Any]) -> list[dict[str, str]]:
+    return [
+        factor
+        for factor in stock_feedback_factors(stock)
+        if factor["dimension"] in ENTRY_EFFECTIVENESS_DIMENSION_WEIGHTS
+    ]
+
+
+def entry_reference_price(stock: dict[str, Any]) -> float | None:
+    close = safe_float(stock.get("close"))
+    buyable = safe_float(stock.get("buyable_price"))
+    recommended = safe_float(stock.get("recommended_entry_price"))
+    entry_gap = safe_float(stock.get("entry_gap_pct"))
+    signal = stock.get("buy_signal_key")
+    status = stock.get("status_key")
+
+    if signal in {"pullback_buy", "breakout_buy"} and buyable:
+        return buyable
+    if stock.get("is_buyable_now") and buyable:
+        return buyable
+    if recommended and status in {"watch", "breakout"} and entry_gap is not None and entry_gap <= 3:
+        return recommended
+    if recommended and close is not None and close <= recommended * 1.02:
+        return recommended
+    return None
+
+
+def future_closes_for_code(snapshots: list[dict[str, Any]], start_index: int, horizon: int, code: str) -> list[float]:
+    closes: list[float] = []
+    end_index = min(len(snapshots) - 1, start_index + horizon)
+    for index in range(start_index + 1, end_index + 1):
+        for stock in snapshots[index].get("stocks", []):
+            if stock.get("code") != code:
+                continue
+            close = safe_float(stock.get("close"))
+            if close is not None:
+                closes.append(close)
+            break
+    return closes
+
+
 def snapshot_return(start_stock: dict[str, Any], future_stock: dict[str, Any]) -> float | None:
     start_close = safe_float(start_stock.get("close"))
     future_close = safe_float(future_stock.get("close"))
@@ -1280,10 +1335,62 @@ def finalize_feedback_factor(raw: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def finalize_entry_effectiveness_factor(raw: dict[str, Any]) -> dict[str, Any]:
+    weighted_count = raw["weighted_count"]
+    raw_count = int(raw["raw_count"])
+    avg_entry_return = raw["entry_return_sum"] / weighted_count if weighted_count else 0.0
+    avg_adverse_drawdown = raw["adverse_drawdown_sum"] / weighted_count if weighted_count else 0.0
+    hit_rate = raw["hit_weight"] / weighted_count * 100 if weighted_count else 0.0
+    crash_rate = raw["crash_weight"] / weighted_count * 100 if weighted_count else 0.0
+    sample_shrink = raw_count / (raw_count + ENTRY_FEEDBACK_MIN_SAMPLES)
+    confidence = clamp(sample_shrink * min(1.0, weighted_count / ENTRY_FEEDBACK_MIN_SAMPLES), 0.0, 1.0)
+
+    downside_penalty = 0.0
+    if avg_entry_return < 0:
+        downside_penalty += abs(avg_entry_return) / 4.0
+    if avg_adverse_drawdown < -3:
+        downside_penalty += (abs(avg_adverse_drawdown) - 3) / 5.0
+    downside_penalty += max(0.0, crash_rate - 15) / 35.0
+
+    upside_credit = max(0.0, avg_entry_return) / 8.0
+    upside_credit += max(0.0, hit_rate - 55) / 80.0
+    price_adjustment = clamp(
+        (upside_credit - downside_penalty) * sample_shrink,
+        ENTRY_FEEDBACK_PRICE_CAP_DOWN,
+        ENTRY_FEEDBACK_PRICE_CAP_UP,
+    )
+
+    if crash_rate >= 35 or avg_adverse_drawdown <= -8 or avg_entry_return <= -5:
+        risk_level = "高"
+    elif crash_rate >= 20 or avg_adverse_drawdown <= -5 or avg_entry_return < 0:
+        risk_level = "中"
+    else:
+        risk_level = "低"
+
+    return {
+        "id": raw["id"],
+        "dimension": raw["dimension"],
+        "value": raw["value"],
+        "label": raw["label"],
+        "sample_count": raw_count,
+        "weighted_sample_count": round_or_none(weighted_count),
+        "avg_entry_return_pct": round_or_none(avg_entry_return),
+        "avg_adverse_drawdown_pct": round_or_none(avg_adverse_drawdown),
+        "hit_rate_pct": round_or_none(hit_rate),
+        "crash_rate_pct": round_or_none(crash_rate),
+        "confidence": round_or_none(confidence, 3),
+        "price_adjustment_pct": round_or_none(price_adjustment, 3),
+        "risk_level": risk_level,
+        "horizons": sorted(raw["horizons"]),
+    }
+
+
 def build_model_feedback(current_rows: list[dict[str, Any]], as_of_date: str) -> dict[str, Any]:
     snapshots = build_feedback_snapshots(current_rows, as_of_date)
     aggregates: dict[str, dict[str, Any]] = {}
+    entry_aggregates: dict[str, dict[str, Any]] = {}
     observations = 0
+    entry_observations = 0
 
     for index, snapshot in enumerate(snapshots):
         start_stocks = snapshot.get("stocks", [])
@@ -1334,10 +1441,57 @@ def build_model_feedback(current_rows: list[dict[str, Any]], as_of_date: str) ->
                     bucket["hit_weight"] += weight if excess_return > 0 else 0.0
                     bucket["horizons"].add(horizon)
 
+                entry_price = entry_reference_price(stock)
+                future_close = safe_float(future_stock.get("close"))
+                if entry_price and future_close is not None:
+                    future_closes = future_closes_for_code(snapshots, index, horizon, code)
+                    if future_closes:
+                        entry_return = (future_close / entry_price - 1) * 100
+                        min_future_close = min(future_closes)
+                        adverse_drawdown = (min_future_close / entry_price - 1) * 100
+                        entry_observations += 1
+                        for factor in entry_effectiveness_factors(stock):
+                            entry_bucket = entry_aggregates.setdefault(
+                                factor["id"],
+                                {
+                                    "id": factor["id"],
+                                    "dimension": factor["dimension"],
+                                    "value": factor["value"],
+                                    "label": factor["label"],
+                                    "raw_count": 0,
+                                    "weighted_count": 0.0,
+                                    "entry_return_sum": 0.0,
+                                    "adverse_drawdown_sum": 0.0,
+                                    "hit_weight": 0.0,
+                                    "crash_weight": 0.0,
+                                    "horizons": set(),
+                                },
+                            )
+                            entry_bucket["raw_count"] += 1
+                            entry_bucket["weighted_count"] += weight
+                            entry_bucket["entry_return_sum"] += entry_return * weight
+                            entry_bucket["adverse_drawdown_sum"] += adverse_drawdown * weight
+                            if entry_return > 0 and adverse_drawdown > ENTRY_ADVERSE_DRAW_THRESHOLD:
+                                entry_bucket["hit_weight"] += weight
+                            if entry_return <= ENTRY_CRASH_RETURN_THRESHOLD or adverse_drawdown <= ENTRY_ADVERSE_DRAW_THRESHOLD:
+                                entry_bucket["crash_weight"] += weight
+                            entry_bucket["horizons"].add(horizon)
+
     factor_stats = [finalize_feedback_factor(raw) for raw in aggregates.values()]
     factor_stats.sort(key=lambda item: (abs(item.get("score_effect") or 0), item.get("sample_count") or 0), reverse=True)
     positive = [item for item in factor_stats if (item.get("score_effect") or 0) > 0]
     negative = [item for item in factor_stats if (item.get("score_effect") or 0) < 0]
+    entry_factor_stats = [finalize_entry_effectiveness_factor(raw) for raw in entry_aggregates.values()]
+    entry_factor_stats.sort(
+        key=lambda item: (
+            item.get("risk_level") == "高",
+            abs(item.get("price_adjustment_pct") or 0),
+            item.get("sample_count") or 0,
+        ),
+        reverse=True,
+    )
+    entry_positive = [item for item in entry_factor_stats if (item.get("price_adjustment_pct") or 0) > 0]
+    entry_negative = [item for item in entry_factor_stats if (item.get("price_adjustment_pct") or 0) < 0]
     confidence = "高" if observations >= 80 else "中" if observations >= 30 else "低"
     return {
         "schema_version": "1.0",
@@ -1357,6 +1511,25 @@ def build_model_feedback(current_rows: list[dict[str, Any]], as_of_date: str) ->
             "top_positive": positive[:5],
             "top_negative": negative[:5],
             "note": "低样本阶段只做小幅修正；反馈分不是收益承诺，而是模型复盘后的排序校正。",
+        },
+        "entry_effectiveness": {
+            "schema_version": "1.0",
+            "method": "按历史快照中可买入或贴近接入价的样本，统计按当时接入价计算的后续收益、最大不利回撤和暴跌率；结果只用于下压/放宽接入纪律，不构成买卖建议。",
+            "observation_count": entry_observations,
+            "min_strong_samples": ENTRY_FEEDBACK_MIN_SAMPLES,
+            "crash_return_threshold_pct": ENTRY_CRASH_RETURN_THRESHOLD,
+            "adverse_drawdown_threshold_pct": ENTRY_ADVERSE_DRAW_THRESHOLD,
+            "price_cap_down_pct": ENTRY_FEEDBACK_PRICE_CAP_DOWN,
+            "price_cap_up_pct": ENTRY_FEEDBACK_PRICE_CAP_UP,
+            "summary": {
+                "factor_count": len(entry_factor_stats),
+                "positive_factor_count": len(entry_positive),
+                "negative_factor_count": len(entry_negative),
+                "top_positive": entry_positive[:5],
+                "top_negative": entry_negative[:5],
+                "note": "价格安全反馈优先惩罚接入后负收益、最大不利回撤和暴跌率；样本不足时强制收缩，宁可少给可买信号。",
+            },
+            "factor_stats": entry_factor_stats,
         },
         "factor_stats": factor_stats,
     }
@@ -1418,6 +1591,99 @@ def feedback_effect_for_row(row: dict[str, Any], feedback_payload: dict[str, Any
         "feedback_factors": matched[:5],
     }
 
+def format_optional_pct(value: Any) -> str:
+    number = safe_float(value)
+    if number is None:
+        return "-"
+    sign = "+" if number > 0 else ""
+    return f"{sign}{number:.2f}%"
+
+
+def entry_safety_effect_for_row(row: dict[str, Any], feedback_payload: dict[str, Any]) -> dict[str, Any]:
+    entry_payload = feedback_payload.get("entry_effectiveness") or {}
+    stats_by_id = {
+        item.get("id"): item
+        for item in entry_payload.get("factor_stats", [])
+        if item.get("id")
+    }
+    matched: list[dict[str, Any]] = []
+    total = 0.0
+    high_risk_weight = 0.0
+    max_crash_rate = 0.0
+
+    for factor in entry_effectiveness_factors(row):
+        stat = stats_by_id.get(factor["id"])
+        if not stat:
+            continue
+        adjustment = safe_float(stat.get("price_adjustment_pct")) or 0.0
+        confidence = safe_float(stat.get("confidence")) or 0.0
+        dimension_weight = ENTRY_EFFECTIVENESS_DIMENSION_WEIGHTS.get(factor["dimension"], 0.5)
+        contribution = adjustment * confidence * dimension_weight
+        if abs(contribution) < 0.01:
+            continue
+        risk_level = stat.get("risk_level") or "未知"
+        crash_rate = safe_float(stat.get("crash_rate_pct")) or 0.0
+        max_crash_rate = max(max_crash_rate, crash_rate)
+        if risk_level == "高":
+            high_risk_weight += abs(contribution)
+        matched.append(
+            {
+                "id": factor["id"],
+                "label": factor["label"],
+                "dimension": factor["dimension"],
+                "sample_count": stat.get("sample_count"),
+                "avg_entry_return_pct": stat.get("avg_entry_return_pct"),
+                "avg_adverse_drawdown_pct": stat.get("avg_adverse_drawdown_pct"),
+                "crash_rate_pct": stat.get("crash_rate_pct"),
+                "confidence": stat.get("confidence"),
+                "risk_level": risk_level,
+                "price_adjustment_pct": round_or_none(contribution, 3),
+            }
+        )
+        total += contribution
+
+    total = clamp(total, ENTRY_FEEDBACK_PRICE_CAP_DOWN, ENTRY_FEEDBACK_PRICE_CAP_UP)
+    matched.sort(key=lambda item: abs(item.get("price_adjustment_pct") or 0), reverse=True)
+
+    if total <= -1.0 or high_risk_weight >= 0.7 or (row.get("is_buyable_now") and total <= -0.25 and max_crash_rate >= 20):
+        label = "接入风险高"
+        block_buy = True
+    elif total <= -0.35:
+        label = "接入偏谨慎"
+        block_buy = False
+    elif total >= 0.25:
+        label = "接入验证较好"
+        block_buy = False
+    elif matched:
+        label = "接入中性"
+        block_buy = False
+    else:
+        label = "接入样本不足"
+        block_buy = False
+
+    note = "；".join(
+        (
+            f"{item['label']}({item['price_adjustment_pct']:+.2f}%, "
+            f"接入后均值{format_optional_pct(item.get('avg_entry_return_pct'))}, "
+            f"回撤{format_optional_pct(item.get('avg_adverse_drawdown_pct'))}, "
+            f"暴跌率{format_optional_pct(item.get('crash_rate_pct'))}, "
+            f"样本{item.get('sample_count')})"
+        )
+        for item in matched[:3]
+        if item.get("price_adjustment_pct") is not None
+    )
+    if not note:
+        note = "历史接入价样本不足，本轮不额外放宽可买价。"
+
+    return {
+        "entry_safety_adjustment_pct": round_or_none(total, 3),
+        "entry_safety_label": label,
+        "entry_safety_note": note,
+        "entry_safety_factors": matched[:5],
+        "entry_safety_block_buy": block_buy,
+        "entry_safety_observation_count": entry_payload.get("observation_count", 0),
+    }
+
 
 def adjusted_price(value: Any, adjustment_pct: float, floor: Any = None, ceiling: Any = None) -> float | None:
     base = safe_float(value)
@@ -1433,10 +1699,21 @@ def adjusted_price(value: Any, adjustment_pct: float, floor: Any = None, ceiling
     return updated
 
 
-def apply_feedback_price_adjustment(row: dict[str, Any], feedback_meta: dict[str, Any]) -> dict[str, Any]:
+def apply_feedback_price_adjustment(
+    row: dict[str, Any],
+    feedback_meta: dict[str, Any],
+    entry_safety_meta: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     feedback_bonus = safe_float(feedback_meta.get("feedback_bonus")) or 0.0
     # Feedback score is already sample-shrunk. Convert it to a small price-discipline adjustment.
-    adjustment_pct = clamp(feedback_bonus * 1.2, -1.2, 1.0)
+    factor_adjustment_pct = clamp(feedback_bonus * 1.2, -1.2, 1.0)
+    entry_safety_meta = entry_safety_meta or {}
+    safety_adjustment_pct = safe_float(entry_safety_meta.get("entry_safety_adjustment_pct")) or 0.0
+    adjustment_pct = clamp(factor_adjustment_pct + safety_adjustment_pct, -3.0, 1.0)
+    if abs(factor_adjustment_pct) < 0.01:
+        factor_adjustment_pct = 0.0
+    if abs(safety_adjustment_pct) < 0.01:
+        safety_adjustment_pct = 0.0
     if abs(adjustment_pct) < 0.01:
         adjustment_pct = 0.0
 
@@ -1455,7 +1732,10 @@ def apply_feedback_price_adjustment(row: dict[str, Any], feedback_meta: dict[str
     for key in auditable_keys:
         row[f"base_{key}"] = row.get(key)
 
-    if adjustment_pct == 0.0:
+    row["factor_price_feedback_adjustment_pct"] = round_or_none(factor_adjustment_pct, 3)
+    row["entry_safety_adjustment_pct"] = round_or_none(safety_adjustment_pct, 3)
+
+    if adjustment_pct == 0.0 and not entry_safety_meta.get("entry_safety_block_buy"):
         label = "价格纪律不变"
         note = "回访样本或反馈强度不足，推荐接入价和可买价保持原模型结果。"
         row.update(
@@ -1523,6 +1803,29 @@ def apply_feedback_price_adjustment(row: dict[str, Any], feedback_meta: dict[str
         f"根据回访归因反馈，推荐接入价和可买价相对原模型{direction}{abs(adjustment_pct):.2f}%。"
         "调整幅度已做样本收缩和上限控制，不改变不追高线。"
     )
+    safety_note = entry_safety_meta.get("entry_safety_note")
+    if safety_note:
+        row["price_feedback_note"] = (
+            f"{row['price_feedback_note']} 接入有效性反馈：{entry_safety_meta.get('entry_safety_label', '-')}"
+            f"；安全调整{format_optional_pct(safety_adjustment_pct)}；{safety_note}"
+        )
+
+    if entry_safety_meta.get("entry_safety_block_buy") and row.get("is_buyable_now"):
+        row["risk_adjusted_buyable_price"] = row.get("buyable_price")
+        row["is_buyable_now"] = False
+        row["base_buy_signal_key"] = row.get("buy_signal_key")
+        row["base_buy_signal_label"] = row.get("buy_signal_label")
+        row["buy_signal_key"] = "risk_wait"
+        row["buy_signal_label"] = "回访风控等待"
+        row["buy_price_path"] = "等待更低价格+量价确认"
+        risk_trigger = safe_float(row.get("entry_price_upper")) or safe_float(row.get("recommended_entry_price")) or safe_float(row.get("next_buy_trigger_price"))
+        row["next_buy_trigger_price"] = round_or_none(risk_trigger)
+        row["buyable_price"] = None
+        row["buy_price_note"] = (
+            f"{row.get('buy_price_note') or ''} 历史接入有效性风险偏高，当前取消可买入标记；"
+            "需等待价格低于校准触发价且量价重新企稳后再复核。"
+        ).strip()
+
     row["entry_price_note"] = f"{row.get('entry_price_note') or ''} {row['price_feedback_note']}".strip()
     row["buy_price_note"] = f"{row.get('buy_price_note') or ''} {row['price_feedback_note']}".strip()
     return row
@@ -1530,14 +1833,35 @@ def apply_feedback_price_adjustment(row: dict[str, Any], feedback_meta: dict[str
 
 def merge_review_record(existing: dict[str, Any], incoming: dict[str, Any]) -> dict[str, Any]:
     merged = {**existing, **incoming}
+    first_keys = (
+        "first_recommend_date",
+        "first_recommend_price",
+        "first_rank",
+        "first_status_key",
+        "first_source",
+        "first_recommended_entry_price",
+        "first_entry_price_lower",
+        "first_entry_price_upper",
+        "first_buyable_price",
+        "first_buy_signal_key",
+        "first_buy_signal_label",
+        "first_is_buyable_now",
+        "first_entry_gap_pct",
+        "first_entry_safety_adjustment_pct",
+        "first_entry_safety_label",
+        "first_entry_safety_block_buy",
+        "first_entry_reference_type",
+        "entry_return_from_first_entry_pct",
+        "entry_drawdown_from_first_entry_pct",
+    )
 
     existing_first = parse_date_value(existing.get("first_recommend_date"))
     incoming_first = parse_date_value(incoming.get("first_recommend_date"))
     if incoming_first and (existing_first is None or incoming_first < existing_first):
-        for key in ("first_recommend_date", "first_recommend_price", "first_rank", "first_status_key", "first_source"):
+        for key in first_keys:
             merged[key] = incoming.get(key)
     else:
-        for key in ("first_recommend_date", "first_recommend_price", "first_rank", "first_status_key", "first_source"):
+        for key in first_keys:
             if existing.get(key) is not None:
                 merged[key] = existing.get(key)
 
@@ -1607,6 +1931,17 @@ def build_review_center(
                 "theme": record.get("theme"),
                 "board": record.get("board"),
                 "source": "review_first",
+                "recommended_entry_price": record.get("first_recommended_entry_price"),
+                "entry_price_lower": record.get("first_entry_price_lower"),
+                "entry_price_upper": record.get("first_entry_price_upper"),
+                "buyable_price": record.get("first_buyable_price"),
+                "buy_signal_key": record.get("first_buy_signal_key"),
+                "buy_signal_label": record.get("first_buy_signal_label"),
+                "is_buyable_now": record.get("first_is_buyable_now"),
+                "entry_gap_pct": record.get("first_entry_gap_pct"),
+                "entry_safety_adjustment_pct": record.get("first_entry_safety_adjustment_pct"),
+                "entry_safety_label": record.get("first_entry_safety_label"),
+                "entry_safety_block_buy": record.get("first_entry_safety_block_buy"),
             }
         latest_price = safe_float(record.get("latest_price"))
         if record.get("latest_date") and latest_price is not None:
@@ -1639,6 +1974,17 @@ def build_review_center(
                 "theme": stock.get("theme"),
                 "board": stock.get("board"),
                 "source": "history_snapshot",
+                "recommended_entry_price": stock.get("recommended_entry_price"),
+                "entry_price_lower": stock.get("entry_price_lower"),
+                "entry_price_upper": stock.get("entry_price_upper"),
+                "buyable_price": stock.get("buyable_price"),
+                "buy_signal_key": stock.get("buy_signal_key"),
+                "buy_signal_label": stock.get("buy_signal_label"),
+                "is_buyable_now": stock.get("is_buyable_now"),
+                "entry_gap_pct": stock.get("entry_gap_pct"),
+                "entry_safety_adjustment_pct": stock.get("entry_safety_adjustment_pct"),
+                "entry_safety_label": stock.get("entry_safety_label"),
+                "entry_safety_block_buy": stock.get("entry_safety_block_buy"),
             }
 
     for row in rows:
@@ -1654,6 +2000,17 @@ def build_review_center(
             "theme": row.get("theme"),
             "board": row.get("board"),
             "source": "current_pool",
+            "recommended_entry_price": row.get("recommended_entry_price"),
+            "entry_price_lower": row.get("entry_price_lower"),
+            "entry_price_upper": row.get("entry_price_upper"),
+            "buyable_price": row.get("buyable_price"),
+            "buy_signal_key": row.get("buy_signal_key"),
+            "buy_signal_label": row.get("buy_signal_label"),
+            "is_buyable_now": row.get("is_buyable_now"),
+            "entry_gap_pct": row.get("entry_gap_pct"),
+            "entry_safety_adjustment_pct": row.get("entry_safety_adjustment_pct"),
+            "entry_safety_label": row.get("entry_safety_label"),
+            "entry_safety_block_buy": row.get("entry_safety_block_buy"),
         }
 
     records: list[dict[str, Any]] = []
@@ -1769,6 +2126,38 @@ def build_review_center(
         if quote_error:
             comment = f"{comment} 最新行情刷新失败，暂用历史快照：{quote_error}"
 
+        first_entry_source = first
+        if safe_float(first_entry_source.get("recommended_entry_price")) is None and safe_float(first_entry_source.get("buyable_price")) is None:
+            first_entry_source = next(
+                (
+                    item
+                    for item in series
+                    if item.get("date") == first.get("date")
+                    and (safe_float(item.get("recommended_entry_price")) is not None or safe_float(item.get("buyable_price")) is not None)
+                ),
+                first_entry_source,
+            )
+        if safe_float(first_entry_source.get("recommended_entry_price")) is None and safe_float(first_entry_source.get("buyable_price")) is None:
+            first_entry_source = next(
+                (
+                    item
+                    for item in series
+                    if safe_float(item.get("recommended_entry_price")) is not None or safe_float(item.get("buyable_price")) is not None
+                ),
+                first_entry_source,
+            )
+
+        first_recommended_entry = safe_float(first_entry_source.get("recommended_entry_price"))
+        first_buyable_price = safe_float(first_entry_source.get("buyable_price"))
+        first_entry_reference = first_buyable_price or first_recommended_entry
+        first_entry_reference_type = "buyable_price" if first_buyable_price else "recommended_entry_price" if first_recommended_entry else None
+        entry_return_pct = None
+        entry_drawdown_pct = None
+        if first_entry_reference and latest_close is not None:
+            entry_return_pct = (latest_close / first_entry_reference - 1) * 100
+        if first_entry_reference and min_close is not None:
+            entry_drawdown_pct = (min_close / first_entry_reference - 1) * 100
+
         identity = current_row or latest or first
         records.append(
             {
@@ -1784,6 +2173,20 @@ def build_review_center(
                 "first_rank": first.get("rank"),
                 "first_status_key": first.get("status_key"),
                 "first_source": first.get("source"),
+                "first_recommended_entry_price": round_or_none(first_recommended_entry),
+                "first_entry_price_lower": round_or_none(first_entry_source.get("entry_price_lower")),
+                "first_entry_price_upper": round_or_none(first_entry_source.get("entry_price_upper")),
+                "first_buyable_price": round_or_none(first_buyable_price),
+                "first_buy_signal_key": first_entry_source.get("buy_signal_key"),
+                "first_buy_signal_label": first_entry_source.get("buy_signal_label"),
+                "first_is_buyable_now": first_entry_source.get("is_buyable_now"),
+                "first_entry_gap_pct": round_or_none(first_entry_source.get("entry_gap_pct")),
+                "first_entry_safety_adjustment_pct": round_or_none(first_entry_source.get("entry_safety_adjustment_pct"), 3),
+                "first_entry_safety_label": first_entry_source.get("entry_safety_label"),
+                "first_entry_safety_block_buy": first_entry_source.get("entry_safety_block_buy"),
+                "first_entry_reference_type": first_entry_reference_type,
+                "entry_return_from_first_entry_pct": round_or_none(entry_return_pct),
+                "entry_drawdown_from_first_entry_pct": round_or_none(entry_drawdown_pct),
                 "last_seen_in_pool_date": last_seen.get("date"),
                 "last_seen_rank": last_seen.get("rank"),
                 "latest_date": latest.get("date"),
@@ -2144,8 +2547,10 @@ def build_payload() -> dict[str, Any]:
     feedback_payload = build_model_feedback(rows, as_of_date)
     for row in rows:
         feedback_meta = feedback_effect_for_row(row, feedback_payload)
+        entry_safety_meta = entry_safety_effect_for_row(row, feedback_payload)
         row.update(feedback_meta)
-        apply_feedback_price_adjustment(row, feedback_meta)
+        row.update(entry_safety_meta)
+        apply_feedback_price_adjustment(row, feedback_meta, entry_safety_meta)
         feedback_bonus = safe_float(feedback_meta.get("feedback_bonus")) or 0.0
         row["score"] = round(row["score"] + feedback_bonus, 1)
 
@@ -2171,8 +2576,11 @@ def build_payload() -> dict[str, Any]:
         "buyable": sum(1 for row in rows if row.get("is_buyable_now")),
         "buyable_pullback": sum(1 for row in rows if row.get("buy_signal_key") == "pullback_buy"),
         "buyable_breakout": sum(1 for row in rows if row.get("buy_signal_key") == "breakout_buy"),
+        "risk_gated": sum(1 for row in rows if row.get("entry_safety_block_buy")),
     }
-    if counts["buyable"]:
+    if counts["risk_gated"]:
+        overall_signal = f"{counts['risk_gated']}只信号被回访接入风控拦截"
+    elif counts["buyable"]:
         overall_signal = f"{counts['buyable']}只触发可买入观察信号"
     elif counts["watch"]:
         overall_signal = "有少量标的进入观察区"
@@ -2203,6 +2611,7 @@ def build_payload() -> dict[str, Any]:
             "chip_factor": "筹码结构用于辅助确认成本分布和兑现压力，不单独构成买卖依据。",
             "feedback_factor": "回访中心历史表现会按信号归因形成反馈分；低样本阶段强制收缩并限制单股影响。",
             "price_feedback_factor": "推荐接入价和可买价会跟随回访反馈做小幅纪律校正；正反馈略放宽，负反馈收紧，不改变不追高线。",
+            "entry_safety_factor": "接入有效性层会复盘历史可买/贴近接入价样本的后续收益、最大不利回撤和暴跌率；风险偏高时下压接入价，必要时取消当前可买入标记。",
             "candidates": [asdict(candidate) for candidate in candidate_library],
         },
         "universe_scan": universe_payload,

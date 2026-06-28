@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0",
-  "generated_at": "2026-06-28T18:53:05+08:00",
+  "generated_at": "2026-06-28T19:35:56+08:00",
   "as_of_date": "2026-06-26",
   "method": "历史推荐快照归因：按主题、买入信号、状态、资金流、筹码、全主板排名、接入价偏离等维度，计算后续收益相对同期推荐池均值的超额收益；样本少时做收缩，单股反馈分封顶。",
   "horizons": [
@@ -201,6 +201,280 @@
       }
     ],
     "note": "低样本阶段只做小幅修正；反馈分不是收益承诺，而是模型复盘后的排序校正。"
+  },
+  "entry_effectiveness": {
+    "schema_version": "1.0",
+    "method": "按历史快照中可买入或贴近接入价的样本，统计按当时接入价计算的后续收益、最大不利回撤和暴跌率；结果只用于下压/放宽接入纪律，不构成买卖建议。",
+    "observation_count": 4,
+    "min_strong_samples": 6,
+    "crash_return_threshold_pct": -5.0,
+    "adverse_drawdown_threshold_pct": -7.0,
+    "price_cap_down_pct": -2.4,
+    "price_cap_up_pct": 0.6,
+    "summary": {
+      "factor_count": 8,
+      "positive_factor_count": 1,
+      "negative_factor_count": 7,
+      "top_positive": [
+        {
+          "id": "chip:筹码压力较大",
+          "dimension": "chip",
+          "value": "筹码压力较大",
+          "label": "筹码=筹码压力较大",
+          "sample_count": 2,
+          "weighted_sample_count": 1.88,
+          "avg_entry_return_pct": 1.18,
+          "avg_adverse_drawdown_pct": 1.18,
+          "hit_rate_pct": 100.0,
+          "crash_rate_pct": 0.0,
+          "confidence": 0.078,
+          "price_adjustment_pct": 0.178,
+          "risk_level": "低",
+          "horizons": [
+            1
+          ]
+        }
+      ],
+      "top_negative": [
+        {
+          "id": "chip:筹码略有压力",
+          "dimension": "chip",
+          "value": "筹码略有压力",
+          "label": "筹码=筹码略有压力",
+          "sample_count": 2,
+          "weighted_sample_count": 2.0,
+          "avg_entry_return_pct": -3.66,
+          "avg_adverse_drawdown_pct": -3.66,
+          "hit_rate_pct": 0.0,
+          "crash_rate_pct": 50.0,
+          "confidence": 0.083,
+          "price_adjustment_pct": -0.512,
+          "risk_level": "高",
+          "horizons": [
+            1
+          ]
+        },
+        {
+          "id": "theme_group:AI半导体",
+          "dimension": "theme_group",
+          "value": "AI半导体",
+          "label": "主题分组=AI半导体",
+          "sample_count": 4,
+          "weighted_sample_count": 3.88,
+          "avg_entry_return_pct": -1.31,
+          "avg_adverse_drawdown_pct": -1.31,
+          "hit_rate_pct": 48.45,
+          "crash_rate_pct": 25.77,
+          "confidence": 0.259,
+          "price_adjustment_pct": -0.254,
+          "risk_level": "中",
+          "horizons": [
+            1
+          ]
+        },
+        {
+          "id": "buy_signal:可突破试探",
+          "dimension": "buy_signal",
+          "value": "可突破试探",
+          "label": "买入信号=可突破试探",
+          "sample_count": 4,
+          "weighted_sample_count": 3.88,
+          "avg_entry_return_pct": -1.31,
+          "avg_adverse_drawdown_pct": -1.31,
+          "hit_rate_pct": 48.45,
+          "crash_rate_pct": 25.77,
+          "confidence": 0.259,
+          "price_adjustment_pct": -0.254,
+          "risk_level": "中",
+          "horizons": [
+            1
+          ]
+        },
+        {
+          "id": "status:突破确认",
+          "dimension": "status",
+          "value": "突破确认",
+          "label": "状态=突破确认",
+          "sample_count": 4,
+          "weighted_sample_count": 3.88,
+          "avg_entry_return_pct": -1.31,
+          "avg_adverse_drawdown_pct": -1.31,
+          "hit_rate_pct": 48.45,
+          "crash_rate_pct": 25.77,
+          "confidence": 0.259,
+          "price_adjustment_pct": -0.254,
+          "risk_level": "中",
+          "horizons": [
+            1
+          ]
+        },
+        {
+          "id": "fund_flow:资金明显流入",
+          "dimension": "fund_flow",
+          "value": "资金明显流入",
+          "label": "资金流=资金明显流入",
+          "sample_count": 4,
+          "weighted_sample_count": 3.88,
+          "avg_entry_return_pct": -1.31,
+          "avg_adverse_drawdown_pct": -1.31,
+          "hit_rate_pct": 48.45,
+          "crash_rate_pct": 25.77,
+          "confidence": 0.259,
+          "price_adjustment_pct": -0.254,
+          "risk_level": "中",
+          "horizons": [
+            1
+          ]
+        }
+      ],
+      "note": "价格安全反馈优先惩罚接入后负收益、最大不利回撤和暴跌率；样本不足时强制收缩，宁可少给可买信号。"
+    },
+    "factor_stats": [
+      {
+        "id": "chip:筹码略有压力",
+        "dimension": "chip",
+        "value": "筹码略有压力",
+        "label": "筹码=筹码略有压力",
+        "sample_count": 2,
+        "weighted_sample_count": 2.0,
+        "avg_entry_return_pct": -3.66,
+        "avg_adverse_drawdown_pct": -3.66,
+        "hit_rate_pct": 0.0,
+        "crash_rate_pct": 50.0,
+        "confidence": 0.083,
+        "price_adjustment_pct": -0.512,
+        "risk_level": "高",
+        "horizons": [
+          1
+        ]
+      },
+      {
+        "id": "theme_group:AI半导体",
+        "dimension": "theme_group",
+        "value": "AI半导体",
+        "label": "主题分组=AI半导体",
+        "sample_count": 4,
+        "weighted_sample_count": 3.88,
+        "avg_entry_return_pct": -1.31,
+        "avg_adverse_drawdown_pct": -1.31,
+        "hit_rate_pct": 48.45,
+        "crash_rate_pct": 25.77,
+        "confidence": 0.259,
+        "price_adjustment_pct": -0.254,
+        "risk_level": "中",
+        "horizons": [
+          1
+        ]
+      },
+      {
+        "id": "buy_signal:可突破试探",
+        "dimension": "buy_signal",
+        "value": "可突破试探",
+        "label": "买入信号=可突破试探",
+        "sample_count": 4,
+        "weighted_sample_count": 3.88,
+        "avg_entry_return_pct": -1.31,
+        "avg_adverse_drawdown_pct": -1.31,
+        "hit_rate_pct": 48.45,
+        "crash_rate_pct": 25.77,
+        "confidence": 0.259,
+        "price_adjustment_pct": -0.254,
+        "risk_level": "中",
+        "horizons": [
+          1
+        ]
+      },
+      {
+        "id": "status:突破确认",
+        "dimension": "status",
+        "value": "突破确认",
+        "label": "状态=突破确认",
+        "sample_count": 4,
+        "weighted_sample_count": 3.88,
+        "avg_entry_return_pct": -1.31,
+        "avg_adverse_drawdown_pct": -1.31,
+        "hit_rate_pct": 48.45,
+        "crash_rate_pct": 25.77,
+        "confidence": 0.259,
+        "price_adjustment_pct": -0.254,
+        "risk_level": "中",
+        "horizons": [
+          1
+        ]
+      },
+      {
+        "id": "fund_flow:资金明显流入",
+        "dimension": "fund_flow",
+        "value": "资金明显流入",
+        "label": "资金流=资金明显流入",
+        "sample_count": 4,
+        "weighted_sample_count": 3.88,
+        "avg_entry_return_pct": -1.31,
+        "avg_adverse_drawdown_pct": -1.31,
+        "hit_rate_pct": 48.45,
+        "crash_rate_pct": 25.77,
+        "confidence": 0.259,
+        "price_adjustment_pct": -0.254,
+        "risk_level": "中",
+        "horizons": [
+          1
+        ]
+      },
+      {
+        "id": "layer_rank:前50",
+        "dimension": "layer_rank",
+        "value": "前50",
+        "label": "全主板排名=前50",
+        "sample_count": 4,
+        "weighted_sample_count": 3.88,
+        "avg_entry_return_pct": -1.31,
+        "avg_adverse_drawdown_pct": -1.31,
+        "hit_rate_pct": 48.45,
+        "crash_rate_pct": 25.77,
+        "confidence": 0.259,
+        "price_adjustment_pct": -0.254,
+        "risk_level": "中",
+        "horizons": [
+          1
+        ]
+      },
+      {
+        "id": "entry_gap:明显高于接入价",
+        "dimension": "entry_gap",
+        "value": "明显高于接入价",
+        "label": "接入价偏离=明显高于接入价",
+        "sample_count": 4,
+        "weighted_sample_count": 3.88,
+        "avg_entry_return_pct": -1.31,
+        "avg_adverse_drawdown_pct": -1.31,
+        "hit_rate_pct": 48.45,
+        "crash_rate_pct": 25.77,
+        "confidence": 0.259,
+        "price_adjustment_pct": -0.254,
+        "risk_level": "中",
+        "horizons": [
+          1
+        ]
+      },
+      {
+        "id": "chip:筹码压力较大",
+        "dimension": "chip",
+        "value": "筹码压力较大",
+        "label": "筹码=筹码压力较大",
+        "sample_count": 2,
+        "weighted_sample_count": 1.88,
+        "avg_entry_return_pct": 1.18,
+        "avg_adverse_drawdown_pct": 1.18,
+        "hit_rate_pct": 100.0,
+        "crash_rate_pct": 0.0,
+        "confidence": 0.078,
+        "price_adjustment_pct": 0.178,
+        "risk_level": "低",
+        "horizons": [
+          1
+        ]
+      }
+    ]
   },
   "factor_stats": [
     {
