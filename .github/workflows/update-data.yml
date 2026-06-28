@@ -67,6 +67,8 @@ jobs:
             echo "No data changes."
           fi
 
+      # GITHUB_TOKEN data commits do not trigger the separate Pages workflow,
+      # so this job deploys the static app after each scheduled data refresh.
       - name: Configure Pages
         uses: actions/configure-pages@v5
 
