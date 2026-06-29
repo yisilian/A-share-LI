@@ -10,6 +10,11 @@ const DEFAULT_AUTO_SETTINGS = {
   stopLossPct: 0.06,
   takeProfitPct: 0.12,
   trailingStopPct: 0.06,
+  morningSlippagePct: 0.002,
+  sellSlippagePct: 0.002,
+  reduceScoreThreshold: 6.8,
+  exitScoreThreshold: 6.2,
+  maxHoldDays: 10,
 };
 
 const DEFAULT_FEE_SETTINGS = {
@@ -44,7 +49,9 @@ const escapeHtml = (value) =>
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
 
-const isFiniteNumber = (value) => value !== null && value !== undefined && Number.isFinite(Number(value));
+function isFiniteNumber(value) {
+  return value !== null && value !== undefined && Number.isFinite(Number(value));
+}
 
 const formatNumber = (value, digits = 2) => {
   if (!isFiniteNumber(value)) return "-";
@@ -159,7 +166,7 @@ const formatEntrySafety = (stock) => {
 
 function createDefaultSimulation() {
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     initialCash: INITIAL_SIM_CASH,
     cash: INITIAL_SIM_CASH,
     positions: {},
@@ -169,6 +176,8 @@ function createDefaultSimulation() {
     feeSettings: { ...DEFAULT_FEE_SETTINGS },
     lastAutoRunKey: "",
     autoLog: [],
+    pendingBuyOrders: [],
+    sellPlans: {},
   };
 }
 
@@ -231,8 +240,10 @@ function sanitizeSimulation(raw) {
 
   const trades = Array.isArray(raw.trades) ? raw.trades.slice(0, 100) : [];
   const autoLog = Array.isArray(raw.autoLog) ? raw.autoLog.slice(0, 50) : [];
+  const pendingBuyOrders = normalizePendingBuyOrders(raw.pendingBuyOrders);
+  const sellPlans = normalizeSellPlans(raw.sellPlans);
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     initialCash,
     cash,
     positions,
@@ -242,6 +253,8 @@ function sanitizeSimulation(raw) {
     feeSettings,
     lastAutoRunKey: raw.lastAutoRunKey || "",
     autoLog,
+    pendingBuyOrders,
+    sellPlans,
   };
 }
 
@@ -255,7 +268,63 @@ function normalizeAutoSettings(raw = {}) {
     stopLossPct: clampPercent(raw.stopLossPct, DEFAULT_AUTO_SETTINGS.stopLossPct, 0.01, 0.3),
     takeProfitPct: clampPercent(raw.takeProfitPct, DEFAULT_AUTO_SETTINGS.takeProfitPct, 0.01, 0.8),
     trailingStopPct: clampPercent(raw.trailingStopPct, DEFAULT_AUTO_SETTINGS.trailingStopPct, 0.01, 0.3),
+    morningSlippagePct: clampPercent(raw.morningSlippagePct, DEFAULT_AUTO_SETTINGS.morningSlippagePct, 0, 0.02),
+    sellSlippagePct: clampPercent(raw.sellSlippagePct, DEFAULT_AUTO_SETTINGS.sellSlippagePct, 0, 0.02),
+    reduceScoreThreshold: Math.max(0, Math.min(10, Number(raw.reduceScoreThreshold ?? DEFAULT_AUTO_SETTINGS.reduceScoreThreshold))),
+    exitScoreThreshold: Math.max(0, Math.min(10, Number(raw.exitScoreThreshold ?? DEFAULT_AUTO_SETTINGS.exitScoreThreshold))),
+    maxHoldDays: Math.max(1, Math.min(60, Math.floor(Number(raw.maxHoldDays ?? DEFAULT_AUTO_SETTINGS.maxHoldDays)) || DEFAULT_AUTO_SETTINGS.maxHoldDays)),
   };
+}
+
+function normalizePendingBuyOrders(raw = []) {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((order) => {
+      if (!order || typeof order !== "object") return null;
+      return {
+        id: order.id || `${order.code || "order"}-${order.createdRunKey || order.signalDate || ""}`,
+        code: String(order.code || ""),
+        name: order.name || order.code || "",
+        status: order.status || "pending",
+        signalDate: order.signalDate || "",
+        signalPhase: order.signalPhase || "",
+        createdRunKey: order.createdRunKey || "",
+        plannedExecutionPhase: order.plannedExecutionPhase || "morning_entry",
+        plannedEntryPrice: isFiniteNumber(order.plannedEntryPrice) ? Number(order.plannedEntryPrice) : null,
+        maxBuyPrice: isFiniteNumber(order.maxBuyPrice) ? Number(order.maxBuyPrice) : null,
+        noChasePrice: isFiniteNumber(order.noChasePrice) ? Number(order.noChasePrice) : null,
+        score: isFiniteNumber(order.score) ? Number(order.score) : null,
+        reason: order.reason || "",
+        cancelReason: order.cancelReason || "",
+        executedAt: order.executedAt || "",
+        executionPrice: isFiniteNumber(order.executionPrice) ? Number(order.executionPrice) : null,
+      };
+    })
+    .filter((order) => order && order.code);
+}
+
+function normalizeSellPlans(raw = {}) {
+  const source = raw && typeof raw === "object" ? raw : {};
+  const plans = {};
+  Object.entries(source).forEach(([code, plan]) => {
+    if (!plan || typeof plan !== "object") return;
+    plans[code] = {
+      code,
+      name: plan.name || code,
+      status: plan.status || "pending",
+      createdRunKey: plan.createdRunKey || "",
+      updatedRunKey: plan.updatedRunKey || "",
+      plannedCheckPhase: plan.plannedCheckPhase || "afternoon_risk",
+      hardStopPrice: isFiniteNumber(plan.hardStopPrice) ? Number(plan.hardStopPrice) : null,
+      takeProfitPrice: isFiniteNumber(plan.takeProfitPrice) ? Number(plan.takeProfitPrice) : null,
+      trailingStopPct: isFiniteNumber(plan.trailingStopPct) ? Number(plan.trailingStopPct) : DEFAULT_AUTO_SETTINGS.trailingStopPct,
+      maxHoldDays: Number.isFinite(Number(plan.maxHoldDays)) ? Number(plan.maxHoldDays) : DEFAULT_AUTO_SETTINGS.maxHoldDays,
+      sellPriority: plan.sellPriority || "normal",
+      warning: plan.warning || "",
+      lastDecision: plan.lastDecision || "",
+    };
+  });
+  return plans;
 }
 
 function normalizeFeeSettings(raw = {}) {
@@ -597,6 +666,29 @@ function currentAutoRunKey() {
   return [state.data?.generated_at, state.data?.as_of_date, state.data?.universe_scan?.update_phase_label].filter(Boolean).join("|");
 }
 
+function currentPhaseKey() {
+  const phase = state.data?.universe_scan?.update_phase;
+  const label = state.data?.universe_scan?.update_phase_label || "";
+  if (phase === "morning_entry" || label.includes("10点") || label.includes("早盘")) return "morning_entry";
+  if (phase === "afternoon_risk" || label.includes("14") || label.includes("尾盘") || label.includes("风控")) return "afternoon_risk";
+  if (phase === "evening_watch" || label.includes("20点") || label.includes("次日")) return "evening_watch";
+  const hour = Number(String(state.data?.generated_at || "").match(/T(\d{2}):/)?.[1]);
+  if (hour >= 19 || hour < 2) return "evening_watch";
+  if (hour >= 14) return "afternoon_risk";
+  if (hour >= 9) return "morning_entry";
+  return "unknown";
+}
+
+function phaseLabel(phase = currentPhaseKey()) {
+  const labels = {
+    morning_entry: "10点买入验证",
+    afternoon_risk: "14:30卖出执行",
+    evening_watch: "20点生成次日计划",
+    unknown: "非交易执行时段",
+  };
+  return labels[phase] || labels.unknown;
+}
+
 function runAutoStrategy({ force = false, quiet = false } = {}) {
   if (!state.data) return { ran: false, events: [] };
   const settings = autoSettings();
@@ -612,16 +704,30 @@ function runAutoStrategy({ force = false, quiet = false } = {}) {
   }
 
   const events = [];
+  const phase = currentPhaseKey();
   updatePositionHighs();
-  runAutoSells(events);
-  runAutoBuys(events);
+  ensureSellPlans(runKey);
+
+  if (phase === "evening_watch") {
+    expirePendingBuyOrders(events);
+    createEveningBuyPlans(runKey, events);
+    ensureSellPlans(runKey, { log: true, events });
+  } else if (phase === "morning_entry") {
+    runMorningRiskReview(events);
+    executePendingBuyOrders(runKey, events);
+  } else if (phase === "afternoon_risk") {
+    executeAfternoonSellPlans(events);
+  } else {
+    events.push({ type: "idle", summary: `${phaseLabel(phase)}：仅更新持仓高点，不执行买卖` });
+  }
+
   state.simulation.lastAutoRunKey = runKey;
-  pushAutoLog(runKey, events);
+  pushAutoLog(runKey, phase, events);
   saveSimulation();
 
   const message = events.length
     ? `自动策略完成：${events.map((event) => event.summary).join("；")}`
-    : "自动策略完成：本次快照没有触发买入或卖出。";
+    : `自动策略完成：${phaseLabel(phase)}没有触发动作。`;
   state.autoRunMessage = message;
   if (!quiet) setSimulationMessage(message, events.length ? "success" : "info");
   return { ran: true, events };
@@ -639,115 +745,298 @@ function updatePositionHighs() {
   });
 }
 
-function runAutoSells(events) {
-  Object.values({ ...state.simulation.positions }).forEach((position) => {
+function ensureSellPlans(runKey = currentAutoRunKey(), options = {}) {
+  state.simulation.sellPlans = state.simulation.sellPlans || {};
+  const activeCodes = new Set(Object.keys(state.simulation.positions || {}));
+  Object.keys(state.simulation.sellPlans).forEach((code) => {
+    if (!activeCodes.has(code)) delete state.simulation.sellPlans[code];
+  });
+
+  Object.values(state.simulation.positions || {}).forEach((position) => {
     const stock = stockOrReview(position.code) || { code: position.code, name: position.name };
-    const price = latestPriceFor(position.code);
-    if (!price) return;
-    const decision = autoSellDecision(stock, position, price);
-    if (!decision.shouldSell) return;
-    const quantity = availableSellQuantity(position);
-    if (!quantity) {
-      events.push({
-        type: "hold",
-        code: position.code,
-        name: position.name,
-        summary: `${position.name}触发${decision.reason}，但 T+1 暂不可卖`,
-      });
-      return;
+    state.simulation.sellPlans[position.code] = buildSellPlan(position, stock, runKey, state.simulation.sellPlans[position.code]);
+  });
+
+  if (options.log && activeCodes.size) {
+    options.events?.push({ type: "sell_plan", summary: `更新${activeCodes.size}只持仓的次日14:30卖出计划` });
+  }
+}
+
+function buildSellPlan(position, stock, runKey, existing = {}) {
+  const settings = autoSettings();
+  const avgCost = averageCost(position);
+  const hardStopPrice = position.stopLossPrice || existing.hardStopPrice || computeStopLossPrice(stock, avgCost);
+  const takeProfitPrice = position.takeProfitPrice || existing.takeProfitPrice || computeTakeProfitPrice(stock, avgCost);
+  return {
+    code: position.code,
+    name: position.name || stock.name || position.code,
+    status: "pending",
+    createdRunKey: existing.createdRunKey || runKey,
+    updatedRunKey: runKey,
+    plannedCheckPhase: "afternoon_risk",
+    hardStopPrice,
+    takeProfitPrice,
+    trailingStopPct: settings.trailingStopPct,
+    maxHoldDays: settings.maxHoldDays,
+    sellPriority: existing.sellPriority || "normal",
+    warning: existing.warning || "",
+    lastDecision: existing.lastDecision || "",
+  };
+}
+
+function expirePendingBuyOrders(events) {
+  let expired = 0;
+  state.simulation.pendingBuyOrders = (state.simulation.pendingBuyOrders || []).map((order) => {
+    if (order.status === "pending") {
+      expired += 1;
+      return { ...order, status: "expired", cancelReason: "20点生成新计划，旧待买计划过期" };
     }
-    const result = sellPosition(stock, price, quantity, { source: "auto", reason: decision.reason });
-    if (result.ok) {
-      events.push({
-        type: "sell",
-        code: stock.code,
-        name: stock.name,
-        summary: `卖出${stock.name}${result.quantity}股/${decision.reason}/费用${formatCurrency(result.fees.total)}`,
-      });
-    }
+    return order;
+  });
+  if (expired) events.push({ type: "expire", summary: `旧待买计划过期${expired}条` });
+}
+
+function createEveningBuyPlans(runKey, events) {
+  const settings = autoSettings();
+  const slots = Math.max(0, settings.maxStocks - Object.keys(state.simulation.positions || {}).length);
+  const limit = Math.min(settings.maxBuysPerRun, slots);
+  if (!limit) {
+    events.push({ type: "buy_plan", summary: "持仓数量已达上限，不生成新买入计划" });
+    return;
+  }
+
+  const orders = [...stocks()]
+    .filter((stock) => !state.simulation.positions[stock.code])
+    .filter((stock) => Number(stock.score || 0) >= settings.minScore)
+    .filter((stock) => !stock.entry_safety_block_buy && stock.buy_signal_key !== "risk_wait" && stock.buy_signal_key !== "avoid" && stock.status_key !== "avoid")
+    .sort((a, b) => Number(b.score || 0) - Number(a.score || 0))
+    .slice(0, limit)
+    .map((stock) => buildPendingBuyOrder(stock, runKey));
+
+  state.simulation.pendingBuyOrders = [
+    ...orders,
+    ...(state.simulation.pendingBuyOrders || []).filter((order) => order.status !== "pending").slice(0, 30),
+  ].slice(0, 50);
+
+  events.push({
+    type: "buy_plan",
+    summary: orders.length ? `生成次日10点待买计划${orders.length}只：${orders.map((order) => order.name).join("、")}` : "没有符合条件的次日待买计划",
   });
 }
 
-function autoSellDecision(stock, position, price) {
-  const settings = autoSettings();
-  const stopLossPrice = position.stopLossPrice || Math.min(...(position.lots || []).map((lot) => lot.stopLossPrice).filter(isFiniteNumber));
-  const takeProfitPrice = position.takeProfitPrice || Math.min(...(position.lots || []).map((lot) => lot.takeProfitPrice).filter(isFiniteNumber));
-  const highestPrice = Math.max(position.highestPrice || 0, ...(position.lots || []).map((lot) => Number(lot.highestPrice || 0)));
-  const trailingStopPrice = highestPrice > 0 ? highestPrice * (1 - settings.trailingStopPct) : null;
-
-  if (isFiniteNumber(stopLossPrice) && price <= Number(stopLossPrice)) {
-    return { shouldSell: true, reason: `跌破止损价${formatNumber(stopLossPrice)}` };
-  }
-  if (isFiniteNumber(takeProfitPrice) && price >= Number(takeProfitPrice)) {
-    return { shouldSell: true, reason: `触发止盈价${formatNumber(takeProfitPrice)}` };
-  }
-  if (isFiniteNumber(trailingStopPrice) && highestPrice > averageCost(position) * 1.04 && price <= trailingStopPrice) {
-    return { shouldSell: true, reason: `高点回撤超过${formatPercent(settings.trailingStopPct * 100, 1)}` };
-  }
-  if (stock.status_key === "avoid" || stock.current_status_key === "avoid" || stock.entry_safety_block_buy) {
-    return { shouldSell: true, reason: "模型风险退出" };
-  }
-  return { shouldSell: false, reason: "" };
+function buildPendingBuyOrder(stock, runKey) {
+  const plannedEntryPrice = firstFinite(stock.recommended_entry_price, stock.buyable_price, stock.close);
+  const maxBuyPrice = Math.min(
+    ...[
+      stock.no_chase_price,
+      stock.buyable_price_upper,
+      plannedEntryPrice ? plannedEntryPrice * 1.03 : null,
+      stock.buyable_price ? Number(stock.buyable_price) * 1.012 : null,
+    ]
+      .filter((value) => isFiniteNumber(value) && Number(value) > 0)
+      .map(Number)
+  );
+  const safeMaxBuyPrice = Number.isFinite(maxBuyPrice) ? maxBuyPrice : plannedEntryPrice;
+  return {
+    id: `${stock.code}-${runKey}`,
+    code: stock.code,
+    name: stock.name,
+    status: "pending",
+    signalDate: currentTradeDate(),
+    signalPhase: "evening_watch",
+    createdRunKey: runKey,
+    plannedExecutionPhase: "morning_entry",
+    plannedEntryPrice,
+    maxBuyPrice: safeMaxBuyPrice,
+    noChasePrice: firstFinite(stock.no_chase_price),
+    score: Number(stock.score || 0),
+    reason: `20点计划：${stock.buy_signal_label || stock.intervention_status || "模型候选"}`,
+  };
 }
 
-function runAutoBuys(events) {
-  const settings = autoSettings();
-  let buys = 0;
-  const candidates = [...stocks()]
-    .filter((stock) => !state.simulation.positions[stock.code])
-    .filter((stock) => Number(stock.score || 0) >= settings.minScore)
-    .sort((a, b) => Number(b.score || 0) - Number(a.score || 0));
+function executePendingBuyOrders(runKey, events) {
+  const pendingOrders = (state.simulation.pendingBuyOrders || []).filter(
+    (order) => order.status === "pending" && order.plannedExecutionPhase === "morning_entry" && order.createdRunKey !== runKey
+  );
+  if (!pendingOrders.length) {
+    events.push({ type: "buy_skip", summary: "10点无上一晚待买计划，跳过买入" });
+    return;
+  }
 
-  for (const stock of candidates) {
-    if (buys >= settings.maxBuysPerRun) break;
-    if (Object.keys(state.simulation.positions || {}).length >= settings.maxStocks) break;
-    const decision = autoBuyDecision(stock);
-    if (!decision.shouldBuy) continue;
-    const quantity = autoBuyQuantity(decision.price);
-    if (!quantity) continue;
-    const result = buyPosition(stock, decision.price, quantity, { source: "auto", reason: decision.reason });
-    if (!result.ok) continue;
-    buys += 1;
+  pendingOrders.forEach((order) => {
+    const stock = findStock(order.code);
+    const price = latestPriceFor(order.code);
+    if (!stock || !price) {
+      markOrderCancelled(order, "缺少10点执行价格或股票不在最新池");
+      events.push({ type: "buy_cancel", code: order.code, summary: `${order.name}取消买入：缺少10点执行价格` });
+      return;
+    }
+
+    const riskDecision = autoBuyDecisionFromPlan(stock, order, price);
+    if (!riskDecision.shouldBuy) {
+      markOrderCancelled(order, riskDecision.reason);
+      events.push({ type: "buy_cancel", code: order.code, summary: `${order.name}取消买入：${riskDecision.reason}` });
+      return;
+    }
+
+    const quantity = autoBuyQuantity(riskDecision.price);
+    if (!quantity) {
+      markOrderCancelled(order, "可用现金不足或不足一手");
+      events.push({ type: "buy_cancel", code: order.code, summary: `${order.name}取消买入：可用现金不足` });
+      return;
+    }
+
+    const result = buyPosition(stock, riskDecision.price, quantity, { source: "auto", reason: `10点验证成交：${order.reason}` });
+    if (!result.ok) {
+      markOrderCancelled(order, result.message);
+      events.push({ type: "buy_cancel", code: order.code, summary: `${order.name}取消买入：${result.message}` });
+      return;
+    }
+
+    order.status = "executed";
+    order.executedAt = runKey;
+    order.executionPrice = riskDecision.price;
+    state.simulation.sellPlans[stock.code] = buildSellPlan(state.simulation.positions[stock.code], stock, runKey);
     events.push({
       type: "buy",
       code: stock.code,
       name: stock.name,
-      summary: `买入${stock.name}${result.quantity}股/${decision.reason}/费用${formatCurrency(result.fees.total)}`,
+      summary: `10点买入${stock.name}${result.quantity}股/成交${formatNumber(riskDecision.price)}/费用${formatCurrency(result.fees.total)}`,
+    });
+  });
+}
+
+function autoBuyDecisionFromPlan(stock, order, snapshotPrice) {
+  const settings = autoSettings();
+  if (stock.entry_safety_block_buy || stock.buy_signal_key === "risk_wait" || stock.buy_signal_key === "avoid" || stock.status_key === "avoid") {
+    return { shouldBuy: false, reason: "10点模型风控拦截" };
+  }
+  const noChasePrice = firstFinite(order.noChasePrice, stock.no_chase_price);
+  if (isFiniteNumber(noChasePrice) && snapshotPrice > Number(noChasePrice)) {
+    return { shouldBuy: false, reason: `10点价超过不追高线${formatNumber(noChasePrice)}` };
+  }
+  const executionPrice = snapshotPrice * (1 + settings.morningSlippagePct);
+  const maxBuyPrice = firstFinite(order.maxBuyPrice, stock.buyable_price_upper, stock.no_chase_price);
+  if (isFiniteNumber(maxBuyPrice) && executionPrice > Number(maxBuyPrice)) {
+    return { shouldBuy: false, reason: `含滑点成交价${formatNumber(executionPrice)}超过最高可买价${formatNumber(maxBuyPrice)}` };
+  }
+  return { shouldBuy: true, price: executionPrice, reason: "10点快照验证通过" };
+}
+
+function markOrderCancelled(order, reason) {
+  order.status = "cancelled";
+  order.cancelReason = reason;
+}
+
+function runMorningRiskReview(events) {
+  Object.values(state.simulation.positions || {}).forEach((position) => {
+    const stock = stockOrReview(position.code) || { code: position.code, name: position.name };
+    const price = latestPriceFor(position.code);
+    if (!price) return;
+    const decision = autoSellDecision(stock, position, price, "morning_entry");
+    if (decision.action === "sell" && decision.critical) {
+      executeSellDecision(stock, position, price, decision, events, "10点极端风险");
+      return;
+    }
+    if (decision.action !== "hold") {
+      const plan = state.simulation.sellPlans[position.code] || buildSellPlan(position, stock, currentAutoRunKey());
+      plan.sellPriority = "must_sell_1430";
+      plan.warning = decision.reason;
+      plan.lastDecision = "10点预警，等待14:30确认";
+      state.simulation.sellPlans[position.code] = plan;
+      events.push({ type: "sell_warning", code: position.code, summary: `${position.name}10点预警：${decision.reason}，等待14:30确认` });
+    }
+  });
+}
+
+function executeAfternoonSellPlans(events) {
+  let checked = 0;
+  Object.values({ ...state.simulation.positions }).forEach((position) => {
+    checked += 1;
+    const stock = stockOrReview(position.code) || { code: position.code, name: position.name };
+    const price = latestPriceFor(position.code);
+    if (!price) {
+      events.push({ type: "sell_skip", code: position.code, summary: `${position.name}缺少14:30执行价格，暂不卖出` });
+      return;
+    }
+    const decision = autoSellDecision(stock, position, price, "afternoon_risk");
+    if (decision.action === "hold" && state.simulation.sellPlans[position.code]?.sellPriority === "must_sell_1430") {
+      decision.action = "sell";
+      decision.fraction = 1;
+      decision.reason = state.simulation.sellPlans[position.code].warning || "10点风险预警延续到14:30";
+    }
+    if (decision.action === "hold") return;
+    executeSellDecision(stock, position, price, decision, events, "14:30执行");
+  });
+  if (!checked) events.push({ type: "sell_skip", summary: "14:30无持仓，无需卖出" });
+  if (checked && !events.some((event) => event.type === "sell")) {
+    events.push({ type: "sell_hold", summary: "14:30未触发卖出条件，继续持有" });
+  }
+}
+
+function executeSellDecision(stock, position, snapshotPrice, decision, events, prefix) {
+  const available = availableSellQuantity(position);
+  if (!available) {
+    events.push({ type: "hold", code: position.code, name: position.name, summary: `${position.name}触发${decision.reason}，但 T+1 暂不可卖` });
+    return;
+  }
+  const sellPrice = snapshotPrice * (1 - autoSettings().sellSlippagePct);
+  const targetQuantity = decision.fraction >= 1 ? available : Math.max(100, normalizeQuantity(available * decision.fraction));
+  const quantity = Math.min(available, targetQuantity);
+  const result = sellPosition(stock, sellPrice, quantity, { source: "auto", reason: `${prefix}：${decision.reason}` });
+  if (result.ok) {
+    if (state.simulation.sellPlans[position.code]) {
+      state.simulation.sellPlans[position.code].lastDecision = decision.reason;
+      if (!state.simulation.positions[position.code]) state.simulation.sellPlans[position.code].status = "executed";
+    }
+    events.push({
+      type: "sell",
+      code: stock.code,
+      name: stock.name,
+      summary: `${prefix}卖出${stock.name}${result.quantity}股/${decision.reason}/成交${formatNumber(sellPrice)}/费用${formatCurrency(result.fees.total)}`,
     });
   }
 }
 
-function autoBuyDecision(stock) {
-  const price = latestPriceFor(stock.code);
-  if (!price) return { shouldBuy: false, reason: "缺少最新价" };
-  if (stock.entry_safety_block_buy || stock.buy_signal_key === "risk_wait" || stock.buy_signal_key === "avoid" || stock.status_key === "avoid") {
-    return { shouldBuy: false, reason: "风控拦截" };
-  }
-  const noChasePrice = Number(stock.no_chase_price);
-  if (Number.isFinite(noChasePrice) && noChasePrice > 0 && price > noChasePrice) {
-    return { shouldBuy: false, reason: "超过不追高线" };
-  }
+function autoSellDecision(stock, position, price, phase = currentPhaseKey()) {
+  const settings = autoSettings();
+  const plan = state.simulation.sellPlans?.[position.code] || buildSellPlan(position, stock, currentAutoRunKey());
+  const stopLossPrice = firstFinite(plan.hardStopPrice, position.stopLossPrice, ...(position.lots || []).map((lot) => lot.stopLossPrice));
+  const takeProfitPrice = firstFinite(plan.takeProfitPrice, position.takeProfitPrice, ...(position.lots || []).map((lot) => lot.takeProfitPrice));
+  const highestPrice = Math.max(position.highestPrice || 0, ...(position.lots || []).map((lot) => Number(lot.highestPrice || 0)));
+  const trailingStopPrice = highestPrice > 0 ? highestPrice * (1 - settings.trailingStopPct) : null;
+  const score = Number(stock.score ?? stock.current_score ?? 10);
+  const holdDays = positionHoldDays(position);
+  const bookReturnPct = position.costBasis > 0 ? ((price * position.quantity - position.costBasis) / position.costBasis) * 100 : 0;
+  const riskFlag = stock.status_key === "avoid" || stock.current_status_key === "avoid" || stock.entry_safety_block_buy;
+  const morning = phase === "morning_entry";
 
-  const entryLower = Number(stock.entry_price_lower);
-  const entryUpper = Number(stock.entry_price_upper);
-  if (Number.isFinite(entryLower) && Number.isFinite(entryUpper) && price >= entryLower && price <= entryUpper) {
-    return { shouldBuy: true, price, reason: `进入接入区间${formatNumber(entryLower)}-${formatNumber(entryUpper)}` };
+  if (isFiniteNumber(stopLossPrice) && price <= Number(stopLossPrice)) {
+    const critical = price <= Number(stopLossPrice) * 0.97 || riskFlag || score < settings.exitScoreThreshold;
+    if (morning && !critical) return { action: "warn", fraction: 0, reason: `跌破止损价${formatNumber(stopLossPrice)}`, critical: false };
+    return { action: "sell", fraction: 1, reason: `跌破止损价${formatNumber(stopLossPrice)}`, critical };
   }
-
-  const buyableUpper = Number(stock.buyable_price_upper);
-  if (stock.is_buyable_now && Number.isFinite(buyableUpper) && price <= buyableUpper) {
-    return { shouldBuy: true, price, reason: stock.buy_signal_label || "触发可买入信号" };
+  if (isFiniteNumber(takeProfitPrice) && price >= Number(takeProfitPrice)) {
+    if (morning) return { action: "warn", fraction: 0, reason: `触发止盈价${formatNumber(takeProfitPrice)}，等待14:30保护利润`, critical: false };
+    return { action: "reduce", fraction: 0.5, reason: `触发止盈价${formatNumber(takeProfitPrice)}，卖出一半`, critical: false };
   }
-
-  const breakoutPrice = Number(stock.breakout_confirm_price);
-  const breakoutUpper = Number(stock.breakout_buy_upper_price || stock.no_chase_price);
-  if (stock.buy_signal_key === "breakout_buy" && Number.isFinite(breakoutPrice) && price >= breakoutPrice) {
-    if (!Number.isFinite(breakoutUpper) || price <= breakoutUpper) {
-      return { shouldBuy: true, price, reason: `突破确认${formatNumber(breakoutPrice)}` };
-    }
+  if (isFiniteNumber(trailingStopPrice) && highestPrice > averageCost(position) * 1.04 && price <= trailingStopPrice) {
+    if (morning) return { action: "warn", fraction: 0, reason: `高点回撤超过${formatPercent(settings.trailingStopPct * 100, 1)}`, critical: false };
+    return { action: "sell", fraction: 1, reason: `高点回撤超过${formatPercent(settings.trailingStopPct * 100, 1)}`, critical: false };
   }
-
-  return { shouldBuy: false, reason: "未触发阈值" };
+  if (riskFlag || score < settings.exitScoreThreshold) {
+    if (morning && score >= settings.exitScoreThreshold) return { action: "warn", fraction: 0, reason: "模型风险退出预警", critical: false };
+    return { action: "sell", fraction: 1, reason: `模型风险退出/评分${formatNumber(score, 1)}`, critical: true };
+  }
+  if (score < settings.reduceScoreThreshold) {
+    if (morning) return { action: "warn", fraction: 0, reason: `评分降至${formatNumber(score, 1)}，14:30考虑减仓`, critical: false };
+    return { action: "reduce", fraction: 0.5, reason: `评分降至${formatNumber(score, 1)}，减仓一半`, critical: false };
+  }
+  if (holdDays >= settings.maxHoldDays && bookReturnPct < 2) {
+    if (morning) return { action: "warn", fraction: 0, reason: `持仓${holdDays}天收益未达标，14:30考虑退出`, critical: false };
+    return { action: "sell", fraction: 1, reason: `持仓${holdDays}天收益未达标`, critical: false };
+  }
+  return { action: "hold", fraction: 0, reason: "" };
 }
 
 function autoBuyQuantity(price) {
@@ -764,13 +1053,29 @@ function autoBuyQuantity(price) {
   return 0;
 }
 
-function pushAutoLog(runKey, events) {
+function firstFinite(...values) {
+  const value = values.find((item) => isFiniteNumber(item) && Number(item) > 0);
+  return value === undefined ? null : Number(value);
+}
+
+function positionHoldDays(position) {
+  const dates = (position.lots || []).map((lot) => lot.tradeDate).filter(Boolean).sort();
+  const firstDate = dates[0];
+  if (!firstDate) return 0;
+  const start = new Date(`${firstDate}T00:00:00`);
+  const end = new Date(`${currentTradeDate()}T00:00:00`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return 0;
+  return Math.max(0, Math.floor((end - start) / 86400000));
+}
+
+function pushAutoLog(runKey, phase, events) {
   state.simulation.autoLog = state.simulation.autoLog || [];
   state.simulation.autoLog.unshift({
     runKey,
     at: new Date().toISOString(),
     tradeDate: currentTradeDate(),
-    phase: state.data?.universe_scan?.update_phase_label || "",
+    phase: state.data?.universe_scan?.update_phase_label || phaseLabel(phase),
+    phaseKey: phase,
     events,
   });
   state.simulation.autoLog = state.simulation.autoLog.slice(0, 50);
@@ -1019,11 +1324,12 @@ function renderSimulationPanel() {
   byId("simLiquidationReturn").className = returnClass(snapshot.liquidationReturn);
   byId("simPositionCount").textContent = String(snapshot.positions.length);
   byId("simTotalFees").textContent = formatCurrency(totalTradeFees());
-  byId("simAutoStatus").textContent = autoSettings().enabled ? "已启用" : "已关闭";
+  byId("simAutoStatus").textContent = autoSettings().enabled ? `已启用 · ${phaseLabel()}` : "已关闭";
 
   renderAutoStrategyControls();
   renderSimulationPositions(snapshot.positions);
   renderSimulationTrades();
+  renderSimulationPlans();
   renderAutoLog();
 }
 
@@ -1060,7 +1366,7 @@ function renderAutoStrategyControls() {
   byId("feeTransferRate").value = formatNumber(fees.transferFeeRate * 100, 4);
   byId("autoStrategyNote").textContent = `最近检查：${
     state.simulation.lastAutoRunKey ? state.simulation.lastAutoRunKey.split("|")[0] : "尚未执行"
-  }。账面收益只扣已发生费用；清仓后收益会额外扣除预计卖出费用。费用默认：佣金万三最低 5 元，卖出印花税 0.05%，过户费 0.001%。`;
+  }。模型按离散快照执行：20点生成次日计划，10点验证买入，14:30执行卖出/风控，20点复盘续订计划。账面收益只扣已发生费用；清仓后收益会额外扣除预计卖出费用。`;
 }
 
 function renderSimulationPositions(positions) {
@@ -1131,6 +1437,56 @@ function renderSimulationTrades() {
       `;
     })
     .join("");
+}
+
+function renderSimulationPlans() {
+  const container = byId("simulationPlans");
+  if (!container) return;
+  const pendingOrders = (state.simulation.pendingBuyOrders || []).filter((order) => order.status === "pending");
+  const sellPlans = Object.values(state.simulation.sellPlans || {}).filter((plan) => plan.status === "pending");
+
+  if (!pendingOrders.length && !sellPlans.length) {
+    container.innerHTML = '<p class="empty-text">暂无待执行计划。20点快照会生成次日10点待买计划，并为持仓生成14:30卖出计划。</p>';
+    return;
+  }
+
+  const buyRows = pendingOrders.map(
+    (order) => `
+      <article class="simulation-row compact">
+        <div>
+          <strong>待买 ${escapeHtml(order.name)}</strong>
+          <em>${escapeHtml(order.code)} · ${escapeHtml(order.reason || "20点计划")}</em>
+        </div>
+        <div>
+          <span>计划/最高买入价</span>
+          <strong>${formatNumber(order.plannedEntryPrice)} / ${formatNumber(order.maxBuyPrice)}</strong>
+        </div>
+        <div>
+          <span>执行窗口</span>
+          <strong>次日10点验证</strong>
+        </div>
+      </article>
+    `
+  );
+  const sellRows = sellPlans.map(
+    (plan) => `
+      <article class="simulation-row compact">
+        <div>
+          <strong>待卖检查 ${escapeHtml(plan.name)}</strong>
+          <em>${escapeHtml(plan.code)} · ${escapeHtml(plan.warning || plan.lastDecision || "常规风控")}</em>
+        </div>
+        <div>
+          <span>硬止损 / 止盈</span>
+          <strong>${formatNumber(plan.hardStopPrice)} / ${formatNumber(plan.takeProfitPrice)}</strong>
+        </div>
+        <div>
+          <span>执行窗口</span>
+          <strong>${plan.sellPriority === "must_sell_1430" ? "14:30优先处理" : "14:30检查"}</strong>
+        </div>
+      </article>
+    `
+  );
+  container.innerHTML = [...buyRows, ...sellRows].join("");
 }
 
 function renderAutoLog() {
