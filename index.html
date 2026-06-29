@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#0f4c81" />
     <title>A-share-LI 主板观察池</title>
+    <link rel="icon" href="assets/icon.svg" type="image/svg+xml" />
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="stylesheet" href="assets/styles.css" />
   </head>
@@ -43,7 +44,7 @@
 
       <section class="notice">
         <strong>使用边界：</strong>
-        这是研究观察池，不是自动买卖指令。回访收益用于检验模型，不代表未来收益。真正下单前，请复核实时行情、公告、财报和个人仓位。
+        这是研究观察和模拟交易工具，不是自动下单系统。模拟收益用于检验模型和交易纪律，不代表真实账户收益。真实下单前，请复核实时行情、公告、财报、交易费用和个人风险承受能力。
       </section>
 
       <nav class="tabs" aria-label="筛选观察状态">
@@ -56,6 +57,70 @@
       </nav>
 
       <section id="stockList" class="stock-list"></section>
+
+      <section class="simulation-panel" id="simulationPanel">
+        <div class="section-head">
+          <div>
+            <h2>模拟交易</h2>
+            <p>初始资金 100000 元，买入按 100 股整数手模拟，数据保存在当前浏览器本地。页面刷新后会用最新观察池价格重估持仓。</p>
+          </div>
+          <span id="simulationBadge" class="section-badge">初始 10 万</span>
+        </div>
+
+        <div class="simulation-summary" aria-live="polite">
+          <div>
+            <span>总资产</span>
+            <strong id="simTotalAssets">-</strong>
+          </div>
+          <div>
+            <span>可用现金</span>
+            <strong id="simCash">-</strong>
+          </div>
+          <div>
+            <span>持仓市值</span>
+            <strong id="simMarketValue">-</strong>
+          </div>
+          <div>
+            <span>累计收益</span>
+            <strong id="simReturn">-</strong>
+          </div>
+          <div>
+            <span>持仓数量</span>
+            <strong id="simPositionCount">-</strong>
+          </div>
+        </div>
+
+        <div class="trade-form">
+          <label>
+            <span>股票</span>
+            <select id="simulationStockSelect"></select>
+          </label>
+          <label>
+            <span>模拟价格</span>
+            <input id="simulationPriceInput" type="number" inputmode="decimal" step="0.01" min="0" />
+          </label>
+          <label>
+            <span>数量</span>
+            <input id="simulationQuantityInput" type="number" inputmode="numeric" step="100" min="100" value="100" />
+          </label>
+          <button id="simulationBuyButton" class="primary-button" type="button">模拟买入</button>
+          <button id="simulationSellButton" class="ghost-button" type="button">模拟卖出</button>
+          <button id="simulationResetButton" class="danger-button" type="button">重置</button>
+        </div>
+
+        <p id="simulationMessage" class="simulation-message"></p>
+
+        <div class="simulation-grid">
+          <div>
+            <h3>当前持仓</h3>
+            <div id="simulationPositions" class="simulation-list"></div>
+          </div>
+          <div>
+            <h3>成交记录</h3>
+            <div id="simulationTrades" class="simulation-list"></div>
+          </div>
+        </div>
+      </section>
 
       <section class="review-panel">
         <div class="section-head">
@@ -70,7 +135,7 @@
 
       <section class="model-panel">
         <h2>模型思路</h2>
-        <p id="modelDescription">长期趋势确认 → 产业链瓶颈 → 供需验证 → 低关注度/错定价 → 催化剂 → 估值重估。</p>
+        <p id="modelDescription">长期趋势确认 → 产业链瓶颈 → 供需验证 → 低关注度/锁定价 → 催化剂 → 估值重估。</p>
         <div id="feedbackStatus" class="source-status"></div>
         <div id="sourceStatus" class="source-status"></div>
       </section>
@@ -98,6 +163,9 @@
           <div><span>不追高线</span><strong class="no-chase"></strong></div>
           <div><span>回访收益</span><strong class="tracking-return"></strong></div>
           <div><span>评分</span><strong class="score"></strong></div>
+        </div>
+        <div class="quick-actions">
+          <button class="trade-pick-button" type="button">用此价模拟买入</button>
         </div>
         <div class="detail" hidden>
           <p class="logic"></p>
