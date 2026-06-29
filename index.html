@@ -62,14 +62,14 @@
         <div class="section-head">
           <div>
             <h2>模拟交易</h2>
-            <p>初始资金 100000 元。自动策略会在每次页面读取到新数据快照后检查一次：先按止盈/止损/风控条件卖出，再按模型触发价买入，并扣除模拟交易费用。</p>
+            <p>初始资金 100000 元。页面只展示自动策略结果：每次读取到新数据快照后检查一次，先按止盈/止损/风控条件卖出，再按模型触发价买入，并扣除模拟交易费用。</p>
           </div>
           <span id="simulationBadge" class="section-badge">初始 10 万</span>
         </div>
 
         <div class="simulation-summary" aria-live="polite">
           <div>
-            <span>总资产</span>
+            <span>账面总资产</span>
             <strong id="simTotalAssets">-</strong>
           </div>
           <div>
@@ -81,8 +81,12 @@
             <strong id="simMarketValue">-</strong>
           </div>
           <div>
-            <span>累计收益</span>
+            <span>账面收益</span>
             <strong id="simReturn">-</strong>
+          </div>
+          <div>
+            <span>清仓后收益</span>
+            <strong id="simLiquidationReturn">-</strong>
           </div>
           <div>
             <span>持仓数量</span>
@@ -99,14 +103,14 @@
         </div>
 
         <div class="auto-strategy-box">
-          <div class="auto-strategy-head">
+          <div class="auto-strategy-head" hidden>
             <label class="toggle-line">
               <input id="autoStrategyEnabled" type="checkbox" />
               <span>启用自动模拟交易</span>
             </label>
             <button id="autoStrategyRunButton" class="ghost-button" type="button">立即检查本次快照</button>
           </div>
-          <div class="strategy-settings">
+          <div class="strategy-settings" hidden>
             <label>
               <span>单票上限</span>
               <input id="autoMaxPositionPct" type="number" inputmode="decimal" step="1" min="1" max="100" />
@@ -132,7 +136,7 @@
               <input id="autoTrailingStopPct" type="number" inputmode="decimal" step="0.5" min="1" max="30" />
             </label>
           </div>
-          <div class="strategy-settings fee-settings">
+          <div class="strategy-settings fee-settings" hidden>
             <label>
               <span>佣金%</span>
               <input id="feeCommissionRate" type="number" inputmode="decimal" step="0.001" min="0" />
@@ -153,7 +157,7 @@
           <p id="autoStrategyNote" class="auto-strategy-note"></p>
         </div>
 
-        <div class="trade-form">
+        <div class="trade-form" hidden>
           <label>
             <span>股票</span>
             <select id="simulationStockSelect"></select>
@@ -231,7 +235,7 @@
           <div><span>回访收益</span><strong class="tracking-return"></strong></div>
           <div><span>评分</span><strong class="score"></strong></div>
         </div>
-        <div class="quick-actions">
+        <div class="quick-actions" hidden>
           <button class="trade-pick-button" type="button">用此价模拟买入</button>
         </div>
         <div class="detail" hidden>

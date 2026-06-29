@@ -394,8 +394,10 @@ function portfolioSnapshot() {
     const marketValue = position.quantity * price;
     const estimatedSellFees = calculateTradeFees("sell", marketValue);
     const liquidationValue = Math.max(0, marketValue - estimatedSellFees.total);
-    const unrealized = liquidationValue - position.costBasis;
-    const unrealizedPct = position.costBasis > 0 ? (unrealized / position.costBasis) * 100 : 0;
+    const bookUnrealized = marketValue - position.costBasis;
+    const liquidationUnrealized = liquidationValue - position.costBasis;
+    const bookUnrealizedPct = position.costBasis > 0 ? (bookUnrealized / position.costBasis) * 100 : 0;
+    const liquidationUnrealizedPct = position.costBasis > 0 ? (liquidationUnrealized / position.costBasis) * 100 : 0;
     const highestPrice = Math.max(
       position.highestPrice || 0,
       price || 0,
@@ -408,24 +410,36 @@ function portfolioSnapshot() {
       marketValue,
       estimatedSellFees: estimatedSellFees.total,
       liquidationValue,
-      unrealized,
-      unrealizedPct,
+      unrealized: bookUnrealized,
+      unrealizedPct: bookUnrealizedPct,
+      bookUnrealized,
+      bookUnrealizedPct,
+      liquidationUnrealized,
+      liquidationUnrealizedPct,
       highestPrice,
       availableQuantity: availableSellQuantity(position),
     };
   });
   const marketValue = positions.reduce((sum, position) => sum + position.marketValue, 0);
   const liquidationValue = positions.reduce((sum, position) => sum + position.liquidationValue, 0);
-  const totalAssets = state.simulation.cash + liquidationValue;
+  const bookAssets = state.simulation.cash + marketValue;
+  const totalAssets = bookAssets;
+  const liquidationAssets = state.simulation.cash + liquidationValue;
   const totalReturn = totalAssets - state.simulation.initialCash;
   const totalReturnPct = state.simulation.initialCash > 0 ? (totalReturn / state.simulation.initialCash) * 100 : 0;
+  const liquidationReturn = liquidationAssets - state.simulation.initialCash;
+  const liquidationReturnPct = state.simulation.initialCash > 0 ? (liquidationReturn / state.simulation.initialCash) * 100 : 0;
   return {
     positions,
     marketValue,
     liquidationValue,
+    bookAssets,
     totalAssets,
     totalReturn,
     totalReturnPct,
+    liquidationAssets,
+    liquidationReturn,
+    liquidationReturnPct,
   };
 }
 
@@ -1001,6 +1015,8 @@ function renderSimulationPanel() {
   byId("simMarketValue").textContent = formatCurrency(snapshot.marketValue);
   byId("simReturn").textContent = `${formatCurrency(snapshot.totalReturn)} / ${formatPercent(snapshot.totalReturnPct)}`;
   byId("simReturn").className = returnClass(snapshot.totalReturn);
+  byId("simLiquidationReturn").textContent = `${formatCurrency(snapshot.liquidationReturn)} / ${formatPercent(snapshot.liquidationReturnPct)}`;
+  byId("simLiquidationReturn").className = returnClass(snapshot.liquidationReturn);
   byId("simPositionCount").textContent = String(snapshot.positions.length);
   byId("simTotalFees").textContent = formatCurrency(totalTradeFees());
   byId("simAutoStatus").textContent = autoSettings().enabled ? "已启用" : "已关闭";
@@ -1044,7 +1060,7 @@ function renderAutoStrategyControls() {
   byId("feeTransferRate").value = formatNumber(fees.transferFeeRate * 100, 4);
   byId("autoStrategyNote").textContent = `最近检查：${
     state.simulation.lastAutoRunKey ? state.simulation.lastAutoRunKey.split("|")[0] : "尚未执行"
-  }。费用默认：佣金万三最低 5 元，卖出印花税 0.05%，过户费 0.001%，都可按你的券商账户调整。`;
+  }。账面收益只扣已发生费用；清仓后收益会额外扣除预计卖出费用。费用默认：佣金万三最低 5 元，卖出印花税 0.05%，过户费 0.001%。`;
 }
 
 function renderSimulationPositions(positions) {
@@ -1072,9 +1088,9 @@ function renderSimulationPositions(positions) {
             <strong>${formatNumber(position.latestPrice)} / ${formatCurrency(position.marketValue)}</strong>
           </div>
           <div>
-            <span>扣费后浮动收益</span>
-            <strong class="${returnClass(position.unrealized)}">${formatCurrency(position.unrealized)} / ${formatPercent(position.unrealizedPct)}</strong>
-            <em>止损 ${formatNumber(position.stopLossPrice)} · 止盈 ${formatNumber(position.takeProfitPrice)}</em>
+            <span>账面浮动收益</span>
+            <strong class="${returnClass(position.bookUnrealized)}">${formatCurrency(position.bookUnrealized)} / ${formatPercent(position.bookUnrealizedPct)}</strong>
+            <em>清仓后 ${formatCurrency(position.liquidationUnrealized)} / ${formatPercent(position.liquidationUnrealizedPct)} · 止损 ${formatNumber(position.stopLossPrice)} · 止盈 ${formatNumber(position.takeProfitPrice)}</em>
           </div>
         </article>
       `
