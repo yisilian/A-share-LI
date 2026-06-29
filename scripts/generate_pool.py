@@ -1781,21 +1781,19 @@ def entry_safety_effect_for_row(row: dict[str, Any], feedback_payload: dict[str,
     total = clamp(total, ENTRY_FEEDBACK_PRICE_CAP_DOWN, ENTRY_FEEDBACK_PRICE_CAP_UP)
     matched.sort(key=lambda item: abs(item.get("price_adjustment_pct") or 0), reverse=True)
 
-    if total <= -1.0 or high_risk_weight >= 0.7 or (row.get("is_buyable_now") and total <= -0.25 and max_crash_rate >= 20):
+    high_risk = total <= -1.0 or high_risk_weight >= 0.7 or (row.get("is_buyable_now") and total <= -0.25 and max_crash_rate >= 20)
+    block_buy = bool(row.get("is_buyable_now") and high_risk)
+
+    if high_risk:
         label = "接入风险高"
-        block_buy = True
     elif total <= -0.35:
         label = "接入偏谨慎"
-        block_buy = False
     elif total >= 0.25:
         label = "接入验证较好"
-        block_buy = False
     elif matched:
         label = "接入中性"
-        block_buy = False
     else:
         label = "接入样本不足"
-        block_buy = False
 
     note = "；".join(
         (
@@ -1818,6 +1816,7 @@ def entry_safety_effect_for_row(row: dict[str, Any], feedback_payload: dict[str,
         "entry_safety_label": label,
         "entry_safety_note": note,
         "entry_safety_factors": matched[:5],
+        "entry_safety_risk_flag": high_risk,
         "entry_safety_block_buy": block_buy,
         "entry_safety_observation_count": entry_payload.get("observation_count", 0),
     }
@@ -1987,6 +1986,7 @@ def merge_review_record(existing: dict[str, Any], incoming: dict[str, Any]) -> d
         "first_entry_gap_pct",
         "first_entry_safety_adjustment_pct",
         "first_entry_safety_label",
+        "first_entry_safety_risk_flag",
         "first_entry_safety_block_buy",
         "first_entry_reference_type",
         "entry_return_from_first_entry_pct",
@@ -2079,6 +2079,7 @@ def build_review_center(
                 "entry_gap_pct": record.get("first_entry_gap_pct"),
                 "entry_safety_adjustment_pct": record.get("first_entry_safety_adjustment_pct"),
                 "entry_safety_label": record.get("first_entry_safety_label"),
+                "entry_safety_risk_flag": record.get("first_entry_safety_risk_flag"),
                 "entry_safety_block_buy": record.get("first_entry_safety_block_buy"),
             }
         latest_price = safe_float(record.get("latest_price"))
@@ -2122,6 +2123,7 @@ def build_review_center(
                 "entry_gap_pct": stock.get("entry_gap_pct"),
                 "entry_safety_adjustment_pct": stock.get("entry_safety_adjustment_pct"),
                 "entry_safety_label": stock.get("entry_safety_label"),
+                "entry_safety_risk_flag": stock.get("entry_safety_risk_flag"),
                 "entry_safety_block_buy": stock.get("entry_safety_block_buy"),
             }
 
@@ -2148,6 +2150,7 @@ def build_review_center(
             "entry_gap_pct": row.get("entry_gap_pct"),
             "entry_safety_adjustment_pct": row.get("entry_safety_adjustment_pct"),
             "entry_safety_label": row.get("entry_safety_label"),
+            "entry_safety_risk_flag": row.get("entry_safety_risk_flag"),
             "entry_safety_block_buy": row.get("entry_safety_block_buy"),
         }
 
@@ -2321,6 +2324,7 @@ def build_review_center(
                 "first_entry_gap_pct": round_or_none(first_entry_source.get("entry_gap_pct")),
                 "first_entry_safety_adjustment_pct": round_or_none(first_entry_source.get("entry_safety_adjustment_pct"), 3),
                 "first_entry_safety_label": first_entry_source.get("entry_safety_label"),
+                "first_entry_safety_risk_flag": first_entry_source.get("entry_safety_risk_flag"),
                 "first_entry_safety_block_buy": first_entry_source.get("entry_safety_block_buy"),
                 "first_entry_reference_type": first_entry_reference_type,
                 "entry_return_from_first_entry_pct": round_or_none(entry_return_pct),
@@ -2714,12 +2718,17 @@ def build_payload() -> dict[str, Any]:
         "buyable": sum(1 for row in rows if row.get("is_buyable_now")),
         "buyable_pullback": sum(1 for row in rows if row.get("buy_signal_key") == "pullback_buy"),
         "buyable_breakout": sum(1 for row in rows if row.get("buy_signal_key") == "breakout_buy"),
-        "risk_gated": sum(1 for row in rows if row.get("entry_safety_block_buy")),
+        "entry_risk_flagged": sum(1 for row in rows if row.get("entry_safety_risk_flag")),
+        "buy_signal_blocked": sum(1 for row in rows if row.get("entry_safety_block_buy")),
     }
-    if counts["risk_gated"]:
-        overall_signal = f"{counts['risk_gated']}只信号被回访接入风控拦截"
+    counts["risk_gated"] = counts["buy_signal_blocked"]
+    if counts["buy_signal_blocked"]:
+        overall_signal = f"{counts['buy_signal_blocked']}只可买信号被回访接入风控拦截"
     elif counts["buyable"]:
-        overall_signal = f"{counts['buyable']}只触发可买入观察信号"
+        risk_suffix = f"，{counts['entry_risk_flagged']}只带接入风险标记" if counts["entry_risk_flagged"] else ""
+        overall_signal = f"{counts['buyable']}只触发可买入观察信号{risk_suffix}"
+    elif counts["entry_risk_flagged"]:
+        overall_signal = f"{counts['entry_risk_flagged']}只观察标的带接入风险标记"
     elif counts["watch"]:
         overall_signal = "有少量标的进入观察区"
     elif counts["breakout"]:
@@ -2749,7 +2758,7 @@ def build_payload() -> dict[str, Any]:
             "chip_factor": "筹码结构用于辅助确认成本分布和兑现压力，不单独构成买卖依据。",
             "feedback_factor": "回访中心历史表现会按信号归因形成反馈分；低样本阶段强制收缩并限制单股影响。",
             "price_feedback_factor": "推荐接入价和可买价会跟随回访反馈做小幅纪律校正；正反馈略放宽，负反馈收紧，不改变不追高线。",
-            "entry_safety_factor": "接入有效性层会复盘历史可买/贴近接入价样本的后续收益、最大不利回撤和暴跌率；风险偏高时下压接入价，必要时取消当前可买入标记。",
+            "entry_safety_factor": "接入有效性层会复盘历史可买/触达/未触达接入价样本的后续收益、最大不利回撤和暴跌率；风险偏高时先标记接入风险并下压接入价，只有原本可买的信号才会被取消为 risk_wait。",
             "candidates": [asdict(candidate) for candidate in candidate_library],
         },
         "universe_scan": universe_payload,

@@ -94,6 +94,11 @@ const formatPriceFeedback = (stock) => {
 const formatEntrySafety = (stock) => {
   const adjustment = formatPercent(stock.entry_safety_adjustment_pct, 3);
   const factors = stock.entry_safety_factors || [];
+  const safetyStatus = stock.entry_safety_block_buy
+    ? "可买信号已被接入风控取消。"
+    : stock.entry_safety_risk_flag
+      ? "带接入风险标记，需等更低价格或更强确认。"
+      : "";
   const factorText = factors.length
     ? factors
         .slice(0, 2)
@@ -103,7 +108,7 @@ const formatEntrySafety = (stock) => {
         )
         .join("；")
     : stock.entry_safety_note || "历史接入价样本不足。";
-  return `${stock.entry_safety_label || "接入样本不足"}：安全调整 ${adjustment}。${factorText}`;
+  return `${stock.entry_safety_label || "接入样本不足"}：安全调整 ${adjustment}。${safetyStatus}${factorText}`;
 };
 
 const byId = (id) => document.getElementById(id);
@@ -150,7 +155,7 @@ function render() {
   byId("sourceStatus").textContent = `更新时间：${data.generated_at || "-"}；数据源：${data.source_status?.quotes || "-"}；${data.source_status?.note || ""}`;
 
   if (feedback.schema_version && entryFeedback.schema_version) {
-    byId("feedbackStatus").textContent += ` 接入有效性：样本 ${entryFeedback.observation_count ?? 0} 条；触达 ${entryFeedback.touched_observation_count ?? 0} 条；未触达等待 ${entryFeedback.untouched_wait_observation_count ?? 0} 条；安全因子 ${entryFeedback.summary?.factor_count ?? 0} 个。${entryFeedback.summary?.note || ""}`;
+    byId("feedbackStatus").textContent += ` 接入有效性：样本 ${entryFeedback.observation_count ?? 0} 条；触达 ${entryFeedback.touched_observation_count ?? 0} 条；未触达等待 ${entryFeedback.untouched_wait_observation_count ?? 0} 条；接入风险标记 ${data.summary?.entry_risk_flagged ?? 0} 只；可买拦截 ${data.summary?.buy_signal_blocked ?? data.summary?.risk_gated ?? 0} 只；安全因子 ${entryFeedback.summary?.factor_count ?? 0} 个。${entryFeedback.summary?.note || ""}`;
   }
 
   const stocks = (data.stocks || []).filter((stock) => {
