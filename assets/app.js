@@ -1,11 +1,30 @@
 const INITIAL_SIM_CASH = 100000;
 const SIM_STORAGE_KEY = "a-share-li-simulation-v1";
 
+const DEFAULT_AUTO_SETTINGS = {
+  enabled: true,
+  maxPositionPct: 0.2,
+  maxStocks: 5,
+  minScore: 7.5,
+  maxBuysPerRun: 2,
+  stopLossPct: 0.06,
+  takeProfitPct: 0.12,
+  trailingStopPct: 0.06,
+};
+
+const DEFAULT_FEE_SETTINGS = {
+  commissionRate: 0.0003,
+  minCommission: 5,
+  stampDutyRate: 0.0005,
+  transferFeeRate: 0.00001,
+};
+
 const state = {
   data: null,
   review: null,
   filter: "all",
   simulation: loadSimulation(),
+  autoRunMessage: "",
 };
 
 const statusMap = {
@@ -140,12 +159,16 @@ const formatEntrySafety = (stock) => {
 
 function createDefaultSimulation() {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     initialCash: INITIAL_SIM_CASH,
     cash: INITIAL_SIM_CASH,
     positions: {},
     trades: [],
     selectedCode: "",
+    autoSettings: { ...DEFAULT_AUTO_SETTINGS },
+    feeSettings: { ...DEFAULT_FEE_SETTINGS },
+    lastAutoRunKey: "",
+    autoLog: [],
   };
 }
 
@@ -163,6 +186,8 @@ function sanitizeSimulation(raw) {
   const initialCash = isFiniteNumber(raw.initialCash) && Number(raw.initialCash) > 0 ? Number(raw.initialCash) : INITIAL_SIM_CASH;
   const cash = isFiniteNumber(raw.cash) ? Number(raw.cash) : initialCash;
   const positions = {};
+  const autoSettings = normalizeAutoSettings(raw.autoSettings);
+  const feeSettings = normalizeFeeSettings(raw.feeSettings);
 
   Object.entries(raw.positions || {}).forEach(([code, position]) => {
     const quantity = Math.max(0, Math.floor(Number(position.quantity || 0)));
@@ -175,35 +200,112 @@ function sanitizeSimulation(raw) {
       .map((lot) => ({
         quantity: Math.max(0, Math.floor(Number(lot.quantity || 0))),
         price: isFiniteNumber(lot.price) ? Number(lot.price) : avgCost,
+        costBasis: isFiniteNumber(lot.costBasis)
+          ? Number(lot.costBasis)
+          : Math.max(0, Math.floor(Number(lot.quantity || 0))) * (isFiniteNumber(lot.price) ? Number(lot.price) : avgCost),
+        fees: isFiniteNumber(lot.fees) ? Number(lot.fees) : 0,
         tradeDate: String(lot.tradeDate || "历史"),
         at: String(lot.at || ""),
+        stopLossPrice: isFiniteNumber(lot.stopLossPrice) ? Number(lot.stopLossPrice) : null,
+        takeProfitPrice: isFiniteNumber(lot.takeProfitPrice) ? Number(lot.takeProfitPrice) : null,
+        highestPrice: isFiniteNumber(lot.highestPrice) ? Number(lot.highestPrice) : isFiniteNumber(lot.price) ? Number(lot.price) : avgCost,
+        entryReason: lot.entryReason || "",
+        source: lot.source || "manual",
       }))
-      .filter((lot) => lot.quantity > 0 && isFiniteNumber(lot.price));
+      .filter((lot) => lot.quantity > 0 && isFiniteNumber(lot.price) && isFiniteNumber(lot.costBasis));
     const costBasis = lots.reduce((sum, lot) => sum + lot.quantity * lot.price, 0);
     if (!lots.length || costBasis <= 0) return;
     positions[code] = {
       code,
       name: position.name || code,
       quantity: lots.reduce((sum, lot) => sum + lot.quantity, 0),
-      costBasis,
+      costBasis: lots.reduce((sum, lot) => sum + lot.costBasis, 0),
       lots,
+      stopLossPrice: isFiniteNumber(position.stopLossPrice) ? Number(position.stopLossPrice) : null,
+      takeProfitPrice: isFiniteNumber(position.takeProfitPrice) ? Number(position.takeProfitPrice) : null,
+      highestPrice: isFiniteNumber(position.highestPrice) ? Number(position.highestPrice) : null,
+      entryReason: position.entryReason || "",
       updatedAt: position.updatedAt || new Date().toISOString(),
     };
   });
 
   const trades = Array.isArray(raw.trades) ? raw.trades.slice(0, 100) : [];
+  const autoLog = Array.isArray(raw.autoLog) ? raw.autoLog.slice(0, 50) : [];
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     initialCash,
     cash,
     positions,
     trades,
     selectedCode: raw.selectedCode || "",
+    autoSettings,
+    feeSettings,
+    lastAutoRunKey: raw.lastAutoRunKey || "",
+    autoLog,
   };
+}
+
+function normalizeAutoSettings(raw = {}) {
+  return {
+    enabled: raw.enabled === undefined ? DEFAULT_AUTO_SETTINGS.enabled : Boolean(raw.enabled),
+    maxPositionPct: clampPercent(raw.maxPositionPct, DEFAULT_AUTO_SETTINGS.maxPositionPct, 0.01, 1),
+    maxStocks: Math.max(1, Math.min(10, Math.floor(Number(raw.maxStocks ?? DEFAULT_AUTO_SETTINGS.maxStocks)) || DEFAULT_AUTO_SETTINGS.maxStocks)),
+    minScore: Math.max(0, Math.min(10, Number(raw.minScore ?? DEFAULT_AUTO_SETTINGS.minScore))),
+    maxBuysPerRun: Math.max(1, Math.min(5, Math.floor(Number(raw.maxBuysPerRun ?? DEFAULT_AUTO_SETTINGS.maxBuysPerRun)) || DEFAULT_AUTO_SETTINGS.maxBuysPerRun)),
+    stopLossPct: clampPercent(raw.stopLossPct, DEFAULT_AUTO_SETTINGS.stopLossPct, 0.01, 0.3),
+    takeProfitPct: clampPercent(raw.takeProfitPct, DEFAULT_AUTO_SETTINGS.takeProfitPct, 0.01, 0.8),
+    trailingStopPct: clampPercent(raw.trailingStopPct, DEFAULT_AUTO_SETTINGS.trailingStopPct, 0.01, 0.3),
+  };
+}
+
+function normalizeFeeSettings(raw = {}) {
+  return {
+    commissionRate: clampPercent(raw.commissionRate, DEFAULT_FEE_SETTINGS.commissionRate, 0, 0.01),
+    minCommission: Math.max(0, Number(raw.minCommission ?? DEFAULT_FEE_SETTINGS.minCommission)),
+    stampDutyRate: clampPercent(raw.stampDutyRate, DEFAULT_FEE_SETTINGS.stampDutyRate, 0, 0.01),
+    transferFeeRate: clampPercent(raw.transferFeeRate, DEFAULT_FEE_SETTINGS.transferFeeRate, 0, 0.001),
+  };
+}
+
+function clampPercent(value, fallback, min, max) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return fallback;
+  return Math.max(min, Math.min(max, number));
 }
 
 function saveSimulation() {
   localStorage.setItem(SIM_STORAGE_KEY, JSON.stringify(state.simulation));
+}
+
+function feeSettings() {
+  state.simulation.feeSettings = normalizeFeeSettings(state.simulation.feeSettings);
+  return state.simulation.feeSettings;
+}
+
+function autoSettings() {
+  state.simulation.autoSettings = normalizeAutoSettings(state.simulation.autoSettings);
+  return state.simulation.autoSettings;
+}
+
+function calculateTradeFees(type, grossAmount) {
+  if (!isFiniteNumber(grossAmount) || Number(grossAmount) <= 0) {
+    return { commission: 0, stampDuty: 0, transferFee: 0, total: 0 };
+  }
+  const settings = feeSettings();
+  const amount = Number(grossAmount);
+  const commission = settings.commissionRate > 0 ? Math.max(amount * settings.commissionRate, settings.minCommission) : 0;
+  const stampDuty = type === "sell" ? amount * settings.stampDutyRate : 0;
+  const transferFee = amount * settings.transferFeeRate;
+  return {
+    commission,
+    stampDuty,
+    transferFee,
+    total: commission + stampDuty + transferFee,
+  };
+}
+
+function totalTradeFees() {
+  return (state.simulation.trades || []).reduce((sum, trade) => sum + Number(trade.fees?.total || trade.feeTotal || 0), 0);
 }
 
 function currentTradeDate() {
@@ -218,9 +320,22 @@ function findStock(code) {
   return stocks().find((stock) => String(stock.code) === String(code));
 }
 
+function reviewRecords() {
+  return state.review?.records || state.data?.review?.records || [];
+}
+
+function findReviewRecord(code) {
+  return reviewRecords().find((record) => String(record.code) === String(code));
+}
+
+function stockOrReview(code) {
+  return findStock(code) || findReviewRecord(code);
+}
+
 function latestPriceFor(code) {
   const stock = findStock(code);
-  const candidates = [stock?.live_quote_price, stock?.close, stock?.daily_close];
+  const review = findReviewRecord(code);
+  const candidates = [stock?.live_quote_price, stock?.close, stock?.daily_close, review?.latest_price];
   const price = candidates.find((candidate) => isFiniteNumber(candidate) && Number(candidate) > 0);
   return price ? Number(price) : null;
 }
@@ -234,6 +349,26 @@ function suggestedTradePrice(stock) {
   ];
   const price = candidates.find((candidate) => isFiniteNumber(candidate) && Number(candidate) > 0);
   return price ? Number(price) : null;
+}
+
+function computeStopLossPrice(stock, entryPrice) {
+  const settings = autoSettings();
+  const fallback = entryPrice * (1 - settings.stopLossPct);
+  const invalidPrice = Number(stock?.invalid_price);
+  if (Number.isFinite(invalidPrice) && invalidPrice > 0 && invalidPrice < entryPrice) {
+    return Math.max(invalidPrice, fallback);
+  }
+  return fallback;
+}
+
+function computeTakeProfitPrice(stock, entryPrice) {
+  const settings = autoSettings();
+  const fallback = entryPrice * (1 + settings.takeProfitPct);
+  const resistancePrice = Number(stock?.resistance_price);
+  if (Number.isFinite(resistancePrice) && resistancePrice > entryPrice) {
+    return Math.min(resistancePrice, fallback);
+  }
+  return fallback;
 }
 
 function averageCost(position) {
@@ -257,25 +392,37 @@ function portfolioSnapshot() {
   const positions = Object.values(state.simulation.positions || {}).map((position) => {
     const price = latestPriceFor(position.code) ?? averageCost(position);
     const marketValue = position.quantity * price;
-    const unrealized = marketValue - position.costBasis;
+    const estimatedSellFees = calculateTradeFees("sell", marketValue);
+    const liquidationValue = Math.max(0, marketValue - estimatedSellFees.total);
+    const unrealized = liquidationValue - position.costBasis;
     const unrealizedPct = position.costBasis > 0 ? (unrealized / position.costBasis) * 100 : 0;
+    const highestPrice = Math.max(
+      position.highestPrice || 0,
+      price || 0,
+      ...(position.lots || []).map((lot) => Number(lot.highestPrice || lot.price || 0))
+    );
     return {
       ...position,
       avgCost: averageCost(position),
       latestPrice: price,
       marketValue,
+      estimatedSellFees: estimatedSellFees.total,
+      liquidationValue,
       unrealized,
       unrealizedPct,
+      highestPrice,
       availableQuantity: availableSellQuantity(position),
     };
   });
   const marketValue = positions.reduce((sum, position) => sum + position.marketValue, 0);
-  const totalAssets = state.simulation.cash + marketValue;
+  const liquidationValue = positions.reduce((sum, position) => sum + position.liquidationValue, 0);
+  const totalAssets = state.simulation.cash + liquidationValue;
   const totalReturn = totalAssets - state.simulation.initialCash;
   const totalReturnPct = state.simulation.initialCash > 0 ? (totalReturn / state.simulation.initialCash) * 100 : 0;
   return {
     positions,
     marketValue,
+    liquidationValue,
     totalAssets,
     totalReturn,
     totalReturnPct,
@@ -289,13 +436,330 @@ function addTrade(trade) {
     tradeDate: currentTradeDate(),
     ...trade,
   });
-  state.simulation.trades = state.simulation.trades.slice(0, 100);
+  state.simulation.trades = state.simulation.trades.slice(0, 200);
+}
+
+function buyPosition(stock, price, quantity, options = {}) {
+  const normalizedQuantity = normalizeQuantity(quantity);
+  if (!stock || !isFiniteNumber(price) || Number(price) <= 0 || !normalizedQuantity) {
+    return { ok: false, message: "买入参数无效。" };
+  }
+  const grossAmount = Number(price) * normalizedQuantity;
+  const fees = calculateTradeFees("buy", grossAmount);
+  const totalCost = grossAmount + fees.total;
+  if (totalCost > state.simulation.cash + 0.0001) {
+    return { ok: false, message: `可用现金不足，本次需要 ${formatCurrency(totalCost)} 元。` };
+  }
+
+  const stopLossPrice = computeStopLossPrice(stock, Number(price));
+  const takeProfitPrice = computeTakeProfitPrice(stock, Number(price));
+  const position =
+    state.simulation.positions[stock.code] ||
+    {
+      code: stock.code,
+      name: stock.name,
+      quantity: 0,
+      costBasis: 0,
+      lots: [],
+      updatedAt: "",
+    };
+  position.name = stock.name;
+  position.quantity += normalizedQuantity;
+  position.costBasis += totalCost;
+  position.stopLossPrice = stopLossPrice;
+  position.takeProfitPrice = takeProfitPrice;
+  position.highestPrice = Math.max(position.highestPrice || 0, Number(price));
+  position.entryReason = options.reason || position.entryReason || "";
+  position.lots.push({
+    quantity: normalizedQuantity,
+    price: Number(price),
+    grossAmount,
+    fees: fees.total,
+    costBasis: totalCost,
+    tradeDate: currentTradeDate(),
+    at: new Date().toISOString(),
+    stopLossPrice,
+    takeProfitPrice,
+    highestPrice: Number(price),
+    entryReason: options.reason || "",
+    source: options.source || "manual",
+  });
+  position.updatedAt = new Date().toISOString();
+  state.simulation.positions[stock.code] = position;
+  state.simulation.cash -= totalCost;
+  addTrade({
+    type: "buy",
+    source: options.source || "manual",
+    reason: options.reason || "手动模拟买入",
+    code: stock.code,
+    name: stock.name,
+    price: Number(price),
+    quantity: normalizedQuantity,
+    amount: grossAmount,
+    grossAmount,
+    netAmount: totalCost,
+    fees,
+    stopLossPrice,
+    takeProfitPrice,
+  });
+  return { ok: true, grossAmount, fees, totalCost, quantity: normalizedQuantity, stopLossPrice, takeProfitPrice };
+}
+
+function sellPosition(stock, price, quantity, options = {}) {
+  const position = state.simulation.positions[stock.code];
+  const normalizedQuantity = normalizeQuantity(quantity);
+  if (!stock || !position || !position.quantity) {
+    return { ok: false, message: "当前没有这只股票的模拟持仓。" };
+  }
+  if (!isFiniteNumber(price) || Number(price) <= 0 || !normalizedQuantity) {
+    return { ok: false, message: "卖出参数无效。" };
+  }
+  const availableQuantity = availableSellQuantity(position);
+  if (normalizedQuantity > availableQuantity) {
+    return {
+      ok: false,
+      message: `可卖数量不足。按 T+1 规则，本交易日买入的数量暂不可卖；当前可卖 ${availableQuantity} 股。`,
+    };
+  }
+
+  let remaining = normalizedQuantity;
+  let releasedCost = 0;
+  const today = currentTradeDate();
+  position.lots = position.lots.map((lot) => {
+    if (remaining <= 0 || lot.tradeDate === today) return lot;
+    const take = Math.min(lot.quantity, remaining);
+    const perShareCost = lot.costBasis / lot.quantity;
+    remaining -= take;
+    releasedCost += perShareCost * take;
+    return {
+      ...lot,
+      quantity: lot.quantity - take,
+      costBasis: Math.max(0, lot.costBasis - perShareCost * take),
+    };
+  });
+
+  if (remaining > 0) {
+    return { ok: false, message: "卖出失败：可卖老仓不足。" };
+  }
+
+  const grossAmount = Number(price) * normalizedQuantity;
+  const fees = calculateTradeFees("sell", grossAmount);
+  const netAmount = grossAmount - fees.total;
+  const realizedPnl = netAmount - releasedCost;
+  position.lots = position.lots.filter((lot) => lot.quantity > 0);
+  position.quantity -= normalizedQuantity;
+  position.costBasis = Math.max(0, position.costBasis - releasedCost);
+  position.updatedAt = new Date().toISOString();
+  if (position.quantity <= 0) {
+    delete state.simulation.positions[stock.code];
+  } else {
+    state.simulation.positions[stock.code] = position;
+  }
+  state.simulation.cash += netAmount;
+  addTrade({
+    type: "sell",
+    source: options.source || "manual",
+    reason: options.reason || "手动模拟卖出",
+    code: stock.code,
+    name: stock.name,
+    price: Number(price),
+    quantity: normalizedQuantity,
+    amount: grossAmount,
+    grossAmount,
+    netAmount,
+    fees,
+    realizedPnl,
+  });
+  return { ok: true, grossAmount, fees, netAmount, releasedCost, realizedPnl, quantity: normalizedQuantity };
 }
 
 function setSimulationMessage(message, type = "info") {
   const element = byId("simulationMessage");
   element.textContent = message || "";
   element.className = `simulation-message ${type}`;
+}
+
+function currentAutoRunKey() {
+  return [state.data?.generated_at, state.data?.as_of_date, state.data?.universe_scan?.update_phase_label].filter(Boolean).join("|");
+}
+
+function runAutoStrategy({ force = false, quiet = false } = {}) {
+  if (!state.data) return { ran: false, events: [] };
+  const settings = autoSettings();
+  if (!settings.enabled) {
+    if (!quiet) setSimulationMessage("自动模拟交易未启用。", "info");
+    return { ran: false, events: [] };
+  }
+  const runKey = currentAutoRunKey();
+  if (!runKey) return { ran: false, events: [] };
+  if (!force && state.simulation.lastAutoRunKey === runKey) {
+    if (!quiet) setSimulationMessage("本次数据快照已经自动检查过，没有重复执行。", "info");
+    return { ran: false, events: [] };
+  }
+
+  const events = [];
+  updatePositionHighs();
+  runAutoSells(events);
+  runAutoBuys(events);
+  state.simulation.lastAutoRunKey = runKey;
+  pushAutoLog(runKey, events);
+  saveSimulation();
+
+  const message = events.length
+    ? `自动策略完成：${events.map((event) => event.summary).join("；")}`
+    : "自动策略完成：本次快照没有触发买入或卖出。";
+  state.autoRunMessage = message;
+  if (!quiet) setSimulationMessage(message, events.length ? "success" : "info");
+  return { ran: true, events };
+}
+
+function updatePositionHighs() {
+  Object.values(state.simulation.positions || {}).forEach((position) => {
+    const price = latestPriceFor(position.code);
+    if (!price) return;
+    position.highestPrice = Math.max(position.highestPrice || 0, price);
+    position.lots = (position.lots || []).map((lot) => ({
+      ...lot,
+      highestPrice: Math.max(lot.highestPrice || lot.price || 0, price),
+    }));
+  });
+}
+
+function runAutoSells(events) {
+  Object.values({ ...state.simulation.positions }).forEach((position) => {
+    const stock = stockOrReview(position.code) || { code: position.code, name: position.name };
+    const price = latestPriceFor(position.code);
+    if (!price) return;
+    const decision = autoSellDecision(stock, position, price);
+    if (!decision.shouldSell) return;
+    const quantity = availableSellQuantity(position);
+    if (!quantity) {
+      events.push({
+        type: "hold",
+        code: position.code,
+        name: position.name,
+        summary: `${position.name}触发${decision.reason}，但 T+1 暂不可卖`,
+      });
+      return;
+    }
+    const result = sellPosition(stock, price, quantity, { source: "auto", reason: decision.reason });
+    if (result.ok) {
+      events.push({
+        type: "sell",
+        code: stock.code,
+        name: stock.name,
+        summary: `卖出${stock.name}${result.quantity}股/${decision.reason}/费用${formatCurrency(result.fees.total)}`,
+      });
+    }
+  });
+}
+
+function autoSellDecision(stock, position, price) {
+  const settings = autoSettings();
+  const stopLossPrice = position.stopLossPrice || Math.min(...(position.lots || []).map((lot) => lot.stopLossPrice).filter(isFiniteNumber));
+  const takeProfitPrice = position.takeProfitPrice || Math.min(...(position.lots || []).map((lot) => lot.takeProfitPrice).filter(isFiniteNumber));
+  const highestPrice = Math.max(position.highestPrice || 0, ...(position.lots || []).map((lot) => Number(lot.highestPrice || 0)));
+  const trailingStopPrice = highestPrice > 0 ? highestPrice * (1 - settings.trailingStopPct) : null;
+
+  if (isFiniteNumber(stopLossPrice) && price <= Number(stopLossPrice)) {
+    return { shouldSell: true, reason: `跌破止损价${formatNumber(stopLossPrice)}` };
+  }
+  if (isFiniteNumber(takeProfitPrice) && price >= Number(takeProfitPrice)) {
+    return { shouldSell: true, reason: `触发止盈价${formatNumber(takeProfitPrice)}` };
+  }
+  if (isFiniteNumber(trailingStopPrice) && highestPrice > averageCost(position) * 1.04 && price <= trailingStopPrice) {
+    return { shouldSell: true, reason: `高点回撤超过${formatPercent(settings.trailingStopPct * 100, 1)}` };
+  }
+  if (stock.status_key === "avoid" || stock.current_status_key === "avoid" || stock.entry_safety_block_buy) {
+    return { shouldSell: true, reason: "模型风险退出" };
+  }
+  return { shouldSell: false, reason: "" };
+}
+
+function runAutoBuys(events) {
+  const settings = autoSettings();
+  let buys = 0;
+  const candidates = [...stocks()]
+    .filter((stock) => !state.simulation.positions[stock.code])
+    .filter((stock) => Number(stock.score || 0) >= settings.minScore)
+    .sort((a, b) => Number(b.score || 0) - Number(a.score || 0));
+
+  for (const stock of candidates) {
+    if (buys >= settings.maxBuysPerRun) break;
+    if (Object.keys(state.simulation.positions || {}).length >= settings.maxStocks) break;
+    const decision = autoBuyDecision(stock);
+    if (!decision.shouldBuy) continue;
+    const quantity = autoBuyQuantity(decision.price);
+    if (!quantity) continue;
+    const result = buyPosition(stock, decision.price, quantity, { source: "auto", reason: decision.reason });
+    if (!result.ok) continue;
+    buys += 1;
+    events.push({
+      type: "buy",
+      code: stock.code,
+      name: stock.name,
+      summary: `买入${stock.name}${result.quantity}股/${decision.reason}/费用${formatCurrency(result.fees.total)}`,
+    });
+  }
+}
+
+function autoBuyDecision(stock) {
+  const price = latestPriceFor(stock.code);
+  if (!price) return { shouldBuy: false, reason: "缺少最新价" };
+  if (stock.entry_safety_block_buy || stock.buy_signal_key === "risk_wait" || stock.buy_signal_key === "avoid" || stock.status_key === "avoid") {
+    return { shouldBuy: false, reason: "风控拦截" };
+  }
+  const noChasePrice = Number(stock.no_chase_price);
+  if (Number.isFinite(noChasePrice) && noChasePrice > 0 && price > noChasePrice) {
+    return { shouldBuy: false, reason: "超过不追高线" };
+  }
+
+  const entryLower = Number(stock.entry_price_lower);
+  const entryUpper = Number(stock.entry_price_upper);
+  if (Number.isFinite(entryLower) && Number.isFinite(entryUpper) && price >= entryLower && price <= entryUpper) {
+    return { shouldBuy: true, price, reason: `进入接入区间${formatNumber(entryLower)}-${formatNumber(entryUpper)}` };
+  }
+
+  const buyableUpper = Number(stock.buyable_price_upper);
+  if (stock.is_buyable_now && Number.isFinite(buyableUpper) && price <= buyableUpper) {
+    return { shouldBuy: true, price, reason: stock.buy_signal_label || "触发可买入信号" };
+  }
+
+  const breakoutPrice = Number(stock.breakout_confirm_price);
+  const breakoutUpper = Number(stock.breakout_buy_upper_price || stock.no_chase_price);
+  if (stock.buy_signal_key === "breakout_buy" && Number.isFinite(breakoutPrice) && price >= breakoutPrice) {
+    if (!Number.isFinite(breakoutUpper) || price <= breakoutUpper) {
+      return { shouldBuy: true, price, reason: `突破确认${formatNumber(breakoutPrice)}` };
+    }
+  }
+
+  return { shouldBuy: false, reason: "未触发阈值" };
+}
+
+function autoBuyQuantity(price) {
+  const snapshot = portfolioSnapshot();
+  const settings = autoSettings();
+  const grossLimit = Math.min(state.simulation.cash, snapshot.totalAssets * settings.maxPositionPct);
+  let quantity = normalizeQuantity(grossLimit / price);
+  while (quantity > 0) {
+    const grossAmount = quantity * price;
+    const totalCost = grossAmount + calculateTradeFees("buy", grossAmount).total;
+    if (totalCost <= state.simulation.cash + 0.0001) return quantity;
+    quantity -= 100;
+  }
+  return 0;
+}
+
+function pushAutoLog(runKey, events) {
+  state.simulation.autoLog = state.simulation.autoLog || [];
+  state.simulation.autoLog.unshift({
+    runKey,
+    at: new Date().toISOString(),
+    tradeDate: currentTradeDate(),
+    phase: state.data?.universe_scan?.update_phase_label || "",
+    events,
+  });
+  state.simulation.autoLog = state.simulation.autoLog.slice(0, 50);
 }
 
 async function loadPool() {
@@ -338,7 +802,9 @@ function render() {
 
   renderModelStatus(data);
   renderStockList();
+  runAutoStrategy({ quiet: true });
   renderSimulationPanel();
+  if (state.autoRunMessage) setSimulationMessage(state.autoRunMessage, "info");
   renderReviewCenter();
 }
 
@@ -536,9 +1002,13 @@ function renderSimulationPanel() {
   byId("simReturn").textContent = `${formatCurrency(snapshot.totalReturn)} / ${formatPercent(snapshot.totalReturnPct)}`;
   byId("simReturn").className = returnClass(snapshot.totalReturn);
   byId("simPositionCount").textContent = String(snapshot.positions.length);
+  byId("simTotalFees").textContent = formatCurrency(totalTradeFees());
+  byId("simAutoStatus").textContent = autoSettings().enabled ? "已启用" : "已关闭";
 
+  renderAutoStrategyControls();
   renderSimulationPositions(snapshot.positions);
   renderSimulationTrades();
+  renderAutoLog();
 }
 
 function syncSimulationSelect() {
@@ -556,6 +1026,25 @@ function syncSimulationSelect() {
     const price = suggestedTradePrice(stock);
     if (price) byId("simulationPriceInput").value = formatNumber(price);
   }
+}
+
+function renderAutoStrategyControls() {
+  const settings = autoSettings();
+  const fees = feeSettings();
+  byId("autoStrategyEnabled").checked = settings.enabled;
+  byId("autoMaxPositionPct").value = formatNumber(settings.maxPositionPct * 100, 0);
+  byId("autoMaxStocks").value = String(settings.maxStocks);
+  byId("autoMinScore").value = formatNumber(settings.minScore, 1);
+  byId("autoStopLossPct").value = formatNumber(settings.stopLossPct * 100, 1);
+  byId("autoTakeProfitPct").value = formatNumber(settings.takeProfitPct * 100, 1);
+  byId("autoTrailingStopPct").value = formatNumber(settings.trailingStopPct * 100, 1);
+  byId("feeCommissionRate").value = formatNumber(fees.commissionRate * 100, 3);
+  byId("feeMinCommission").value = formatNumber(fees.minCommission, 1);
+  byId("feeStampDutyRate").value = formatNumber(fees.stampDutyRate * 100, 3);
+  byId("feeTransferRate").value = formatNumber(fees.transferFeeRate * 100, 4);
+  byId("autoStrategyNote").textContent = `最近检查：${
+    state.simulation.lastAutoRunKey ? state.simulation.lastAutoRunKey.split("|")[0] : "尚未执行"
+  }。费用默认：佣金万三最低 5 元，卖出印花税 0.05%，过户费 0.001%，都可按你的券商账户调整。`;
 }
 
 function renderSimulationPositions(positions) {
@@ -583,8 +1072,9 @@ function renderSimulationPositions(positions) {
             <strong>${formatNumber(position.latestPrice)} / ${formatCurrency(position.marketValue)}</strong>
           </div>
           <div>
-            <span>浮动收益</span>
+            <span>扣费后浮动收益</span>
             <strong class="${returnClass(position.unrealized)}">${formatCurrency(position.unrealized)} / ${formatPercent(position.unrealizedPct)}</strong>
+            <em>止损 ${formatNumber(position.stopLossPrice)} · 止盈 ${formatNumber(position.takeProfitPrice)}</em>
           </div>
         </article>
       `
@@ -605,19 +1095,52 @@ function renderSimulationTrades() {
     .map((trade) => {
       const isBuy = trade.type === "buy";
       const pnlText = isBuy || !isFiniteNumber(trade.realizedPnl) ? "" : ` · 已实现 ${formatCurrency(trade.realizedPnl)}`;
+      const feeText = trade.fees?.total ? ` · 费用 ${formatCurrency(trade.fees.total)}` : "";
+      const sourceText = trade.source === "auto" ? "自动" : "手动";
       return `
         <article class="simulation-row compact">
           <div>
-            <strong class="${isBuy ? "buy-now" : "buy-avoid"}">${isBuy ? "买入" : "卖出"} ${escapeHtml(trade.name)}</strong>
-            <em>${escapeHtml(trade.tradeDate || "-")} · ${escapeHtml(trade.code)}</em>
+            <strong class="${isBuy ? "buy-now" : "buy-avoid"}">${sourceText}${isBuy ? "买入" : "卖出"} ${escapeHtml(trade.name)}</strong>
+            <em>${escapeHtml(trade.tradeDate || "-")} · ${escapeHtml(trade.code)} · ${escapeHtml(trade.reason || "")}</em>
           </div>
           <div>
             <span>价格 / 数量</span>
             <strong>${formatNumber(trade.price)} / ${trade.quantity}</strong>
           </div>
           <div>
-            <span>成交额</span>
-            <strong>${formatCurrency(trade.amount)}${pnlText}</strong>
+            <span>成交额 / 费用</span>
+            <strong>${formatCurrency(trade.amount)}${feeText}${pnlText}</strong>
+          </div>
+        </article>
+      `;
+    })
+    .join("");
+}
+
+function renderAutoLog() {
+  const container = byId("simulationAutoLog");
+  const logs = state.simulation.autoLog || [];
+  if (!logs.length) {
+    container.innerHTML = '<p class="empty-text">暂无自动策略执行记录。启用后，每次读取到新的数据快照会自动检查一次。</p>';
+    return;
+  }
+  container.innerHTML = logs
+    .slice(0, 20)
+    .map((log) => {
+      const eventText = log.events?.length ? log.events.map((event) => event.summary).join("；") : "未触发交易";
+      return `
+        <article class="simulation-row compact">
+          <div>
+            <strong>${escapeHtml(log.tradeDate || "-")} · ${escapeHtml(log.phase || "自动检查")}</strong>
+            <em>${escapeHtml(log.runKey || "")}</em>
+          </div>
+          <div>
+            <span>动作</span>
+            <strong>${escapeHtml(eventText)}</strong>
+          </div>
+          <div>
+            <span>执行时间</span>
+            <strong>${escapeHtml(new Date(log.at).toLocaleString("zh-CN"))}</strong>
           </div>
         </article>
       `;
@@ -658,45 +1181,19 @@ function handleSimulationBuy() {
     return;
   }
   byId("simulationQuantityInput").value = String(quantity);
-  const amount = price * quantity;
-  if (amount > state.simulation.cash + 0.0001) {
-    setSimulationMessage(`可用现金不足，本次需要 ${formatCurrency(amount)} 元。`, "error");
+  const result = buyPosition(stock, price, quantity, { source: "manual", reason: "手动模拟买入" });
+  if (!result.ok) {
+    setSimulationMessage(result.message, "error");
     return;
   }
-
-  const position =
-    state.simulation.positions[stock.code] ||
-    {
-      code: stock.code,
-      name: stock.name,
-      quantity: 0,
-      costBasis: 0,
-      lots: [],
-      updatedAt: "",
-    };
-  position.name = stock.name;
-  position.quantity += quantity;
-  position.costBasis += amount;
-  position.lots.push({
-    quantity,
-    price,
-    tradeDate: currentTradeDate(),
-    at: new Date().toISOString(),
-  });
-  position.updatedAt = new Date().toISOString();
-  state.simulation.positions[stock.code] = position;
-  state.simulation.cash -= amount;
-  addTrade({
-    type: "buy",
-    code: stock.code,
-    name: stock.name,
-    price,
-    quantity,
-    amount,
-  });
   saveSimulation();
   renderSimulationPanel();
-  setSimulationMessage(`已模拟买入 ${stock.name} ${quantity} 股，成交额 ${formatCurrency(amount)} 元。`, "success");
+  setSimulationMessage(
+    `已模拟买入 ${stock.name} ${result.quantity} 股，成交额 ${formatCurrency(result.grossAmount)} 元，费用 ${formatCurrency(
+      result.fees.total
+    )} 元，止损 ${formatNumber(result.stopLossPrice)}，止盈 ${formatNumber(result.takeProfitPrice)}。`,
+    "success"
+  );
 }
 
 function handleSimulationSell() {
@@ -720,53 +1217,19 @@ function handleSimulationSell() {
     setSimulationMessage("卖出数量需至少 100 股，并按 100 股整数手模拟。", "error");
     return;
   }
-  const availableQuantity = availableSellQuantity(position);
-  if (quantity > availableQuantity) {
-    setSimulationMessage(`可卖数量不足。按 T+1 规则，本交易日买入的数量暂不可卖；当前可卖 ${availableQuantity} 股。`, "error");
+  const result = sellPosition(stock, price, quantity, { source: "manual", reason: "手动模拟卖出" });
+  if (!result.ok) {
+    setSimulationMessage(result.message, "error");
     return;
   }
-
-  let remaining = quantity;
-  let releasedCost = 0;
-  let realizedPnl = 0;
-  const today = currentTradeDate();
-  position.lots = position.lots.map((lot) => {
-    if (remaining <= 0 || lot.tradeDate === today) return lot;
-    const take = Math.min(lot.quantity, remaining);
-    remaining -= take;
-    releasedCost += lot.price * take;
-    realizedPnl += (price - lot.price) * take;
-    return { ...lot, quantity: lot.quantity - take };
-  });
-
-  if (remaining > 0) {
-    setSimulationMessage("卖出失败：可卖老仓不足。", "error");
-    return;
-  }
-
-  position.lots = position.lots.filter((lot) => lot.quantity > 0);
-  position.quantity -= quantity;
-  position.costBasis = Math.max(0, position.costBasis - releasedCost);
-  position.updatedAt = new Date().toISOString();
-  if (position.quantity <= 0) {
-    delete state.simulation.positions[stock.code];
-  } else {
-    state.simulation.positions[stock.code] = position;
-  }
-  const amount = price * quantity;
-  state.simulation.cash += amount;
-  addTrade({
-    type: "sell",
-    code: stock.code,
-    name: stock.name,
-    price,
-    quantity,
-    amount,
-    realizedPnl,
-  });
   saveSimulation();
   renderSimulationPanel();
-  setSimulationMessage(`已模拟卖出 ${stock.name} ${quantity} 股，已实现收益 ${formatCurrency(realizedPnl)} 元。`, "success");
+  setSimulationMessage(
+    `已模拟卖出 ${stock.name} ${result.quantity} 股，成交额 ${formatCurrency(result.grossAmount)} 元，费用 ${formatCurrency(
+      result.fees.total
+    )} 元，已实现收益 ${formatCurrency(result.realizedPnl)} 元。`,
+    "success"
+  );
 }
 
 function resetSimulation() {
@@ -838,6 +1301,47 @@ function bindSimulationEvents() {
   byId("simulationBuyButton").addEventListener("click", handleSimulationBuy);
   byId("simulationSellButton").addEventListener("click", handleSimulationSell);
   byId("simulationResetButton").addEventListener("click", resetSimulation);
+  byId("autoStrategyRunButton").addEventListener("click", () => {
+    runAutoStrategy({ force: false, quiet: false });
+    renderSimulationPanel();
+  });
+  byId("autoStrategyEnabled").addEventListener("change", (event) => {
+    state.simulation.autoSettings = { ...autoSettings(), enabled: event.target.checked };
+    saveSimulation();
+    renderSimulationPanel();
+    setSimulationMessage(event.target.checked ? "自动模拟交易已启用。" : "自动模拟交易已关闭。", "info");
+  });
+
+  const settingBindings = [
+    ["autoMaxPositionPct", "autoSettings", "maxPositionPct", 100],
+    ["autoMaxStocks", "autoSettings", "maxStocks", 1],
+    ["autoMinScore", "autoSettings", "minScore", 1],
+    ["autoStopLossPct", "autoSettings", "stopLossPct", 100],
+    ["autoTakeProfitPct", "autoSettings", "takeProfitPct", 100],
+    ["autoTrailingStopPct", "autoSettings", "trailingStopPct", 100],
+    ["feeCommissionRate", "feeSettings", "commissionRate", 100],
+    ["feeMinCommission", "feeSettings", "minCommission", 1],
+    ["feeStampDutyRate", "feeSettings", "stampDutyRate", 100],
+    ["feeTransferRate", "feeSettings", "transferFeeRate", 100],
+  ];
+
+  settingBindings.forEach(([id, group, key, divisor]) => {
+    byId(id).addEventListener("change", (event) => {
+      const rawValue = Number(event.target.value);
+      if (!Number.isFinite(rawValue)) return;
+      state.simulation[group] = {
+        ...(group === "autoSettings" ? autoSettings() : feeSettings()),
+        [key]: rawValue / divisor,
+      };
+      if (key === "maxStocks") state.simulation[group][key] = Math.floor(rawValue);
+      if (key === "minScore" || key === "minCommission") state.simulation[group][key] = rawValue;
+      state.simulation.autoSettings = normalizeAutoSettings(state.simulation.autoSettings);
+      state.simulation.feeSettings = normalizeFeeSettings(state.simulation.feeSettings);
+      saveSimulation();
+      renderSimulationPanel();
+      setSimulationMessage("自动策略参数已保存。下一次自动检查会按新参数执行。", "info");
+    });
+  });
 }
 
 document.querySelectorAll(".tab").forEach((button) => {
