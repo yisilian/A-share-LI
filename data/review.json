@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0",
-  "generated_at": "2026-06-29T19:15:14+08:00",
+  "generated_at": "2026-06-29T19:21:36+08:00",
   "as_of_date": "2026-06-29",
   "summary": {
     "tracked_count": 43,
@@ -285,7 +285,7 @@
       "latest_price": 28.49,
       "latest_source": "latest_quote",
       "tracking_days": 11,
-      "snapshot_count": 6,
+      "snapshot_count": 5,
       "return_since_first_pct": 7.27,
       "max_return_since_first_pct": 9.11,
       "drawdown_from_peak_pct": -1.69,
@@ -1941,7 +1941,7 @@
       "latest_price": 6.37,
       "latest_source": "current_pool",
       "tracking_days": 11,
-      "snapshot_count": 6,
+      "snapshot_count": 7,
       "return_since_first_pct": -16.73,
       "max_return_since_first_pct": 3.66,
       "drawdown_from_peak_pct": -19.67,
