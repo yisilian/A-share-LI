@@ -82,6 +82,10 @@ FEEDBACK_DIMENSION_WEIGHTS = {
     "entry_gap": 0.7,
     "price_source": 0.35,
 }
+FEEDBACK_DIMENSION_LABELS["market_regime"] = "市场阶段"
+FEEDBACK_DIMENSION_LABELS["update_phase"] = "更新时段"
+FEEDBACK_DIMENSION_WEIGHTS["market_regime"] = 0.75
+FEEDBACK_DIMENSION_WEIGHTS["update_phase"] = 0.6
 FEEDBACK_DIMENSION_LABELS["entry_sample_type"] = "接入样本类型"
 ENTRY_EFFECTIVENESS_DIMENSION_WEIGHTS = {
     "buy_signal": 1.25,
@@ -93,6 +97,8 @@ ENTRY_EFFECTIVENESS_DIMENSION_WEIGHTS = {
     "layer_rank": 0.45,
     "entry_sample_type": 1.1,
 }
+ENTRY_EFFECTIVENESS_DIMENSION_WEIGHTS["market_regime"] = 0.85
+ENTRY_EFFECTIVENESS_DIMENSION_WEIGHTS["update_phase"] = 0.65
 
 
 @dataclass(frozen=True)
@@ -1445,13 +1451,69 @@ def entry_gap_bucket(gap_pct: Any) -> str:
     return "明显高于接入价"
 
 
+def update_phase_from_timestamp(value: Any = None) -> tuple[str, str]:
+    dt: datetime | None = None
+    if isinstance(value, datetime):
+        dt = value
+    elif value:
+        try:
+            dt = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        except ValueError:
+            dt = None
+    if dt is None:
+        dt = datetime.now(CN_TZ)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=CN_TZ)
+    local = dt.astimezone(CN_TZ)
+    minutes = local.hour * 60 + local.minute
+    if minutes < 12 * 60:
+        return "morning_entry", "10点早盘接入"
+    if minutes < 17 * 60:
+        return "afternoon_risk", "14:30尾盘风控"
+    return "evening_watch", "20点次日关注"
+
+
+def clean_feedback_value(value: Any) -> str:
+    return str(value or "未知").replace("\n", " ").strip() or "未知"
+
+
+def feedback_value_is_noisy(value: Any) -> bool:
+    text = clean_feedback_value(value)
+    if text in {"?", "??", "???", "????", "?????", "??????"}:
+        return True
+    if "\ufffd" in text or "锟斤拷" in text:
+        return True
+    question_count = text.count("?")
+    return question_count >= 2 and question_count / max(1, len(text)) >= 0.25
+
+
+def chip_value_is_missing(value: Any) -> bool:
+    text = clean_feedback_value(value)
+    if feedback_value_is_noisy(text):
+        return True
+    return "暂缺" in text or text in {"未知", "筹码未知", "筹码数据暂缺"}
+
+
 def feedback_factor_id(dimension: str, value: Any) -> str:
-    clean_value = str(value or "未知").replace("\n", " ").strip() or "未知"
-    return f"{dimension}:{clean_value}"
+    return f"{dimension}:{clean_feedback_value(value)}"
 
 
 def feedback_factor_label(dimension: str, value: Any) -> str:
     return f"{FEEDBACK_DIMENSION_LABELS.get(dimension, dimension)}={value or '未知'}"
+
+
+def build_feedback_factor(dimension: str, value: Any) -> dict[str, str] | None:
+    if dimension == "chip" and chip_value_is_missing(value):
+        return None
+    if feedback_value_is_noisy(value):
+        return None
+    clean_value = clean_feedback_value(value)
+    return {
+        "id": feedback_factor_id(dimension, clean_value),
+        "dimension": dimension,
+        "value": clean_value,
+        "label": feedback_factor_label(dimension, clean_value),
+    }
 
 
 def stock_feedback_factors(stock: dict[str, Any]) -> list[dict[str, str]]:
@@ -1464,16 +1526,15 @@ def stock_feedback_factors(stock: dict[str, Any]) -> list[dict[str, str]]:
         ("layer_rank", layer_rank_bucket(stock.get("layer_one_rank"))),
         ("entry_gap", entry_gap_bucket(stock.get("entry_gap_pct"))),
         ("price_source", stock.get("price_source") or "未知"),
+        ("market_regime", stock.get("feedback_market_regime") or stock.get("market_regime") or "unknown"),
+        ("update_phase", stock.get("update_phase_label") or stock.get("update_phase") or "unknown"),
     ]
-    return [
-        {
-            "id": feedback_factor_id(dimension, value),
-            "dimension": dimension,
-            "value": str(value),
-            "label": feedback_factor_label(dimension, value),
-        }
-        for dimension, value in raw_factors
-    ]
+    factors: list[dict[str, str]] = []
+    for dimension, value in raw_factors:
+        factor = build_feedback_factor(dimension, value)
+        if factor:
+            factors.append(factor)
+    return factors
 
 
 def entry_effectiveness_factors(stock: dict[str, Any]) -> list[dict[str, str]]:
@@ -1607,8 +1668,29 @@ def snapshot_benchmark_return(start_stocks: list[dict[str, Any]], future_stocks:
     return sum(returns) / len(returns) if returns else 0.0
 
 
-def feedback_snapshot_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def feedback_context_meta(
+    market_environment: dict[str, Any] | None = None,
+    generated_at: Any = None,
+) -> dict[str, Any]:
+    market_environment = market_environment or {}
+    phase, phase_label = update_phase_from_timestamp(generated_at)
+    return {
+        "feedback_market_regime": market_environment.get("regime") or "unknown",
+        "feedback_market_label": market_environment.get("label") or "市场阶段未知",
+        "update_phase": phase,
+        "update_phase_label": phase_label,
+    }
+
+
+def apply_feedback_context(rows: list[dict[str, Any]], context: dict[str, Any]) -> None:
+    for row in rows:
+        for key, value in context.items():
+            row[key] = row.get(key) or value
+
+
+def feedback_snapshot_rows(rows: list[dict[str, Any]], context: dict[str, Any] | None = None) -> list[dict[str, Any]]:
     cleaned: list[dict[str, Any]] = []
+    context = context or {}
     for stock in rows:
         close = safe_float(stock.get("close"))
         code = stock.get("code")
@@ -1616,11 +1698,17 @@ def feedback_snapshot_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
             continue
         item = dict(stock)
         item["close"] = close
+        for key, value in context.items():
+            item[key] = item.get(key) or value
         cleaned.append(item)
     return cleaned
 
 
-def build_feedback_snapshots(current_rows: list[dict[str, Any]], as_of_date: str) -> list[dict[str, Any]]:
+def build_feedback_snapshots(
+    current_rows: list[dict[str, Any]],
+    as_of_date: str,
+    market_environment: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
     by_date: dict[str, list[dict[str, Any]]] = {}
     current_date = parse_date_value(as_of_date)
     for snapshot in load_history_snapshots():
@@ -1628,10 +1716,13 @@ def build_feedback_snapshots(current_rows: list[dict[str, Any]], as_of_date: str
         parsed = parse_date_value(snapshot_date)
         if not snapshot_date or (current_date and parsed and parsed > current_date):
             continue
-        rows = feedback_snapshot_rows(snapshot.get("stocks", []))
+        snapshot_market = (snapshot.get("universe_scan") or {}).get("market_environment") or {}
+        snapshot_context = feedback_context_meta(snapshot_market, snapshot.get("generated_at") or snapshot_date)
+        rows = feedback_snapshot_rows(snapshot.get("stocks", []), snapshot_context)
         if rows:
             by_date[snapshot_date] = rows
-    current_cleaned = feedback_snapshot_rows(current_rows)
+    current_context = feedback_context_meta(market_environment, datetime.now(CN_TZ))
+    current_cleaned = feedback_snapshot_rows(current_rows, current_context)
     if current_cleaned:
         by_date[as_of_date] = current_cleaned
     return [
@@ -1733,14 +1824,22 @@ def finalize_entry_effectiveness_factor(raw: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def build_model_feedback(current_rows: list[dict[str, Any]], as_of_date: str) -> dict[str, Any]:
-    snapshots = build_feedback_snapshots(current_rows, as_of_date)
+def build_model_feedback(
+    current_rows: list[dict[str, Any]],
+    as_of_date: str,
+    market_environment: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    snapshots = build_feedback_snapshots(current_rows, as_of_date, market_environment)
     aggregates: dict[str, dict[str, Any]] = {}
     entry_aggregates: dict[str, dict[str, Any]] = {}
     observations = 0
     entry_observations = 0
     entry_touched_observations = 0
     entry_untouched_observations = 0
+    market_regime_counts: dict[str, int] = {}
+    update_phase_counts: dict[str, int] = {}
+    entry_market_regime_counts: dict[str, int] = {}
+    entry_update_phase_counts: dict[str, int] = {}
     daily_cache: dict[str, pd.DataFrame] = {}
 
     for index, snapshot in enumerate(snapshots):
@@ -1769,6 +1868,10 @@ def build_model_feedback(current_rows: list[dict[str, Any]], as_of_date: str) ->
                     continue
                 excess_return = return_pct - benchmark
                 observations += 1
+                market_key = clean_feedback_value(stock.get("feedback_market_regime") or stock.get("market_regime") or "unknown")
+                phase_key = clean_feedback_value(stock.get("update_phase_label") or stock.get("update_phase") or "unknown")
+                market_regime_counts[market_key] = market_regime_counts.get(market_key, 0) + 1
+                update_phase_counts[phase_key] = update_phase_counts.get(phase_key, 0) + 1
                 for factor in stock_feedback_factors(stock):
                     bucket = aggregates.setdefault(
                         factor["id"],
@@ -1811,6 +1914,8 @@ def build_model_feedback(current_rows: list[dict[str, Any]], as_of_date: str) ->
                             entry_touched_observations += 1
                         else:
                             entry_untouched_observations += 1
+                        entry_market_regime_counts[market_key] = entry_market_regime_counts.get(market_key, 0) + 1
+                        entry_update_phase_counts[phase_key] = entry_update_phase_counts.get(phase_key, 0) + 1
 
                         sample_type_factor = {
                             "id": feedback_factor_id("entry_sample_type", entry_meta.get("sample_type_label")),
@@ -1885,13 +1990,25 @@ def build_model_feedback(current_rows: list[dict[str, Any]], as_of_date: str) ->
         "schema_version": "1.0",
         "generated_at": datetime.now(CN_TZ).isoformat(timespec="seconds"),
         "as_of_date": as_of_date,
-        "method": "历史推荐快照归因：按主题、买入信号、状态、资金流、筹码、全主板排名、接入价偏离等维度，计算后续收益相对同期推荐池均值的超额收益；样本少时做收缩，单股反馈分封顶。",
+        "method": "历史推荐快照归因：按主题、买入信号、状态、资金流、有效筹码、全主板排名、接入价偏离、市场阶段、更新时间段等维度，计算后续收益相对同期推荐池均值的超额收益；样本少时做收缩，单股反馈分封顶；乱码/异常因子与筹码缺失因子不参与惩罚。",
         "horizons": list(FEEDBACK_HORIZONS),
         "snapshot_count": len(snapshots),
         "observation_count": observations,
         "confidence": confidence,
         "score_cap": FEEDBACK_SCORE_CAP,
         "min_strong_samples": FEEDBACK_MIN_STRONG_SAMPLES,
+        "cleaning_policy": {
+            "skip_noisy_factor_values": True,
+            "chip_missing_is_neutral": True,
+            "uses_market_regime_segments": True,
+            "uses_update_phase_segments": True,
+        },
+        "segmentation": {
+            "market_regime_counts": dict(sorted(market_regime_counts.items())),
+            "update_phase_counts": dict(sorted(update_phase_counts.items())),
+            "entry_market_regime_counts": dict(sorted(entry_market_regime_counts.items())),
+            "entry_update_phase_counts": dict(sorted(entry_update_phase_counts.items())),
+        },
         "summary": {
             "factor_count": len(factor_stats),
             "positive_factor_count": len(positive),
@@ -2337,6 +2454,52 @@ def apply_market_theme_context(row: dict[str, Any], market_environment: dict[str
     return row
 
 
+def apply_portfolio_concentration_control(rows: list[dict[str, Any]], preferred_max_per_theme: int = 2) -> dict[str, Any]:
+    ordered = sorted(rows, key=lambda row: safe_float(row.get("score")) or 0.0, reverse=True)
+    group_counts: dict[str, int] = {}
+    penalties: list[dict[str, Any]] = []
+    for row in ordered:
+        group = row.get("theme_group") or theme_group(row.get("theme"))
+        before = group_counts.get(group, 0)
+        group_counts[group] = before + 1
+        overflow = max(0, before + 1 - preferred_max_per_theme)
+        penalty = clamp(overflow * 0.35, 0.0, 1.05)
+        row["portfolio_theme_group"] = group
+        row["portfolio_theme_count_before"] = before
+        row["portfolio_concentration_penalty"] = round_or_none(penalty, 3)
+        if penalty:
+            row["score"] = round((safe_float(row.get("score")) or 0.0) - penalty, 1)
+            row["portfolio_concentration_note"] = f"{group}在候选池中已较集中，本股排序轻微降权{penalty:.2f}分，降低同主题联动回撤。"
+            penalties.append(
+                {
+                    "code": row.get("code"),
+                    "name": row.get("name"),
+                    "theme_group": group,
+                    "penalty": round_or_none(penalty, 3),
+                    "theme_count_before": before,
+                }
+            )
+        else:
+            row["portfolio_concentration_note"] = "主题集中度未触发降权。"
+
+    return {
+        "schema_version": "1.0",
+        "preferred_max_per_theme": preferred_max_per_theme,
+        "candidate_theme_counts": dict(sorted(group_counts.items())),
+        "penalized_count": len(penalties),
+        "penalized": penalties[:12],
+        "note": "组合层约束只做排序降权，不直接否定个股逻辑；目标是减少同一主题拥挤导致的回撤联动。",
+    }
+
+
+def summarize_theme_exposure(rows: list[dict[str, Any]]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for row in rows:
+        group = row.get("portfolio_theme_group") or row.get("theme_group") or theme_group(row.get("theme"))
+        counts[group] = counts.get(group, 0) + 1
+    return dict(sorted(counts.items(), key=lambda item: (-item[1], item[0])))
+
+
 def merge_review_record(existing: dict[str, Any], incoming: dict[str, Any]) -> dict[str, Any]:
     merged = {**existing, **incoming}
     first_keys = (
@@ -2411,6 +2574,103 @@ def load_existing_review_records() -> list[dict[str, Any]]:
         pass
 
     return list(records_by_code.values())
+
+
+def classify_review_attribution(
+    *,
+    active: bool,
+    theme: Any,
+    first_close: Any,
+    first_entry_reference: Any,
+    first_entry_gap_pct: Any,
+    first_buy_signal_key: Any,
+    first_entry_safety_risk_flag: Any,
+    return_pct: Any,
+    max_return_pct: Any,
+    drawdown_from_peak_pct: Any,
+    entry_return_pct: Any,
+    entry_drawdown_pct: Any,
+    latest_source: Any,
+) -> dict[str, Any]:
+    ret = safe_float(return_pct)
+    max_ret = safe_float(max_return_pct)
+    drawdown = safe_float(drawdown_from_peak_pct)
+    entry_ret = safe_float(entry_return_pct)
+    entry_drawdown = safe_float(entry_drawdown_pct)
+    first_price = safe_float(first_close)
+    entry_ref = safe_float(first_entry_reference)
+    first_gap = safe_float(first_entry_gap_pct)
+    signal = str(first_buy_signal_key or "")
+    group = theme_group(theme)
+    factors: list[str] = []
+
+    if ret is None:
+        primary = "pending_data"
+        factors.append("latest_price_missing")
+        model_action = "等待最新行情补齐后再纳入反馈。"
+    elif ret >= 5:
+        primary = "positive_validation"
+        if entry_ret is not None and entry_ret > ret + 3:
+            factors.append("entry_price_better_than_first_recommend")
+            model_action = "方向验证为正，同时保留接入价纪律，避免首推价过高。"
+        else:
+            factors.append("direction_validated")
+            model_action = "正反馈保留，但不提高到确定性结论。"
+    elif ret <= -5:
+        primary = "negative_review"
+        if entry_ref is None:
+            factors.append("missing_entry_reference")
+        if first_price is not None and entry_ref:
+            first_gap_from_entry = (first_price / entry_ref - 1) * 100
+            if first_gap_from_entry >= 10:
+                factors.append("first_recommend_price_far_above_entry")
+        if first_gap is not None and first_gap >= 10:
+            factors.append("entry_gap_too_high")
+        if signal == "breakout_buy":
+            factors.append("breakout_signal_failed")
+        if entry_drawdown is not None and entry_drawdown <= -7:
+            factors.append("entry_price_adverse_drawdown")
+        if entry_ret is not None and entry_ret <= -5:
+            factors.append("entry_price_failed")
+        elif entry_ret is not None and entry_ret > 0:
+            factors.append("entry_price_better_than_first_recommend")
+        if drawdown is not None and drawdown <= -10:
+            factors.append("post_recommend_drawdown_too_deep")
+        if max_ret is not None and max_ret >= 5 and drawdown is not None and drawdown <= -8:
+            factors.append("profit_not_protected")
+        if bool(first_entry_safety_risk_flag):
+            factors.append("entry_safety_warning_was_present")
+        if group in {"资源周期", "高端制造"}:
+            factors.append("theme_volatility_or_rotation")
+        if active:
+            factors.append("still_active_negative_feedback")
+        else:
+            factors.append("exited_negative_feedback")
+
+        if "entry_price_failed" in factors or "entry_price_adverse_drawdown" in factors:
+            model_action = "收紧接入价并提高触达后回撤惩罚。"
+        elif "first_recommend_price_far_above_entry" in factors or "entry_gap_too_high" in factors:
+            model_action = "降低首推价偏离过高样本权重，强化等待纪律。"
+        elif "profit_not_protected" in factors:
+            model_action = "增加冲高回落后的止盈/调出反馈权重。"
+        elif "breakout_signal_failed" in factors:
+            model_action = "突破试探需叠加市场和主题扩散确认。"
+        else:
+            model_action = "降低同类主题/信号权重并继续积累样本。"
+    else:
+        primary = "neutral_tracking"
+        factors.append("inside_validation_band")
+        model_action = "继续观察，不作强反馈。"
+
+    if latest_source == "history_snapshot":
+        factors.append("latest_quote_from_history_snapshot")
+
+    return {
+        "primary": primary,
+        "theme_group": group,
+        "factors": sorted(set(factors)),
+        "model_action": model_action,
+    }
 
 
 def build_review_center(
@@ -2669,6 +2929,21 @@ def build_review_center(
             entry_drawdown_pct = (min_close / first_entry_reference - 1) * 100
 
         identity = current_row or latest or first
+        review_attribution = classify_review_attribution(
+            active=active,
+            theme=identity.get("theme") or first.get("theme"),
+            first_close=first_close,
+            first_entry_reference=first_entry_reference,
+            first_entry_gap_pct=first_entry_source.get("entry_gap_pct"),
+            first_buy_signal_key=first_entry_source.get("buy_signal_key"),
+            first_entry_safety_risk_flag=first_entry_source.get("entry_safety_risk_flag"),
+            return_pct=return_pct,
+            max_return_pct=max_return_pct,
+            drawdown_from_peak_pct=drawdown_from_peak_pct,
+            entry_return_pct=entry_return_pct,
+            entry_drawdown_pct=entry_drawdown_pct,
+            latest_source=latest.get("source"),
+        )
         records.append(
             {
                 "code": code,
@@ -2713,11 +2988,21 @@ def build_review_center(
                 "worst_close": round_or_none(min_close),
                 "worst_date": min_entry.get("date"),
                 "review_status": review_status,
+                "review_attribution": review_attribution,
+                "review_primary_attribution": review_attribution.get("primary"),
+                "review_model_action": review_attribution.get("model_action"),
                 "comment": comment,
             }
         )
 
     tracked = [record for record in records if record.get("return_since_first_pct") is not None]
+    attribution_counts: dict[str, int] = {}
+    model_action_counts: dict[str, int] = {}
+    for record in records:
+        primary = record.get("review_primary_attribution") or "unknown"
+        attribution_counts[primary] = attribution_counts.get(primary, 0) + 1
+        action = record.get("review_model_action") or "unknown"
+        model_action_counts[action] = model_action_counts.get(action, 0) + 1
 
     def record_return(record: dict[str, Any]) -> float:
         return float(record["return_since_first_pct"])
@@ -2733,6 +3018,8 @@ def build_review_center(
             "average_return_pct": round_or_none(sum(returns) / len(returns)),
             "positive_count": sum(1 for value in returns if value > 0),
             "negative_count": sum(1 for value in returns if value < 0),
+            "attribution_counts": dict(sorted(attribution_counts.items())),
+            "model_action_counts": dict(sorted(model_action_counts.items(), key=lambda item: (-item[1], item[0]))),
             "best": {
                 "code": best["code"],
                 "name": best["name"],
@@ -2752,6 +3039,8 @@ def build_review_center(
             "average_return_pct": None,
             "positive_count": 0,
             "negative_count": 0,
+            "attribution_counts": dict(sorted(attribution_counts.items())),
+            "model_action_counts": dict(sorted(model_action_counts.items(), key=lambda item: (-item[1], item[0]))),
             "best": None,
             "worst": None,
         }
@@ -3061,7 +3350,11 @@ def build_payload() -> dict[str, Any]:
 
     as_of_date = max(row["as_of_date"] for row in rows)
     market_environment = universe_payload.get("market_environment") or {}
-    feedback_payload = build_model_feedback(rows, as_of_date)
+    current_feedback_context = feedback_context_meta(market_environment, datetime.now(CN_TZ))
+    apply_feedback_context(rows, current_feedback_context)
+    universe_payload["update_phase"] = current_feedback_context["update_phase"]
+    universe_payload["update_phase_label"] = current_feedback_context["update_phase_label"]
+    feedback_payload = build_model_feedback(rows, as_of_date, market_environment)
     for row in rows:
         feedback_meta = feedback_effect_for_row(row, feedback_payload)
         entry_safety_meta = entry_safety_effect_for_row(row, feedback_payload)
@@ -3072,6 +3365,7 @@ def build_payload() -> dict[str, Any]:
         row["score"] = round(row["score"] + feedback_bonus, 1)
         apply_market_theme_context(row, market_environment)
 
+    concentration_payload = apply_portfolio_concentration_control(rows)
     rows.sort(key=lambda row: row["score"], reverse=True)
     rows = rows[:FINAL_POOL_SIZE]
     for index, row in enumerate(rows, start=1):
@@ -3101,7 +3395,9 @@ def build_payload() -> dict[str, Any]:
         "decision_grade_b": sum(1 for row in rows if row.get("decision_grade") == "B"),
         "decision_grade_c": sum(1 for row in rows if row.get("decision_grade") == "C"),
         "decision_grade_d": sum(1 for row in rows if row.get("decision_grade") == "D"),
+        "concentration_penalized": sum(1 for row in rows if safe_float(row.get("portfolio_concentration_penalty"))),
     }
+    theme_exposure = summarize_theme_exposure(rows)
     counts["risk_gated"] = counts["buy_signal_blocked"]
     if counts["market_context_blocked"]:
         overall_signal = f"{counts['market_context_blocked']}只可买信号被市场环境层降级"
@@ -3143,11 +3439,13 @@ def build_payload() -> dict[str, Any]:
             "price_feedback_factor": "推荐接入价和可买价会跟随回访反馈做小幅纪律校正；正反馈略放宽，负反馈收紧，不改变不追高线。",
             "entry_safety_factor": "接入有效性层会复盘历史可买/触达/未触达接入价样本的后续收益、最大不利回撤和暴跌率；风险偏高时先标记接入风险并下压接入价，只有原本可买的信号才会被取消为 risk_wait。",
             "market_context_factor": "市场环境层会根据全主板涨跌扩散、强弱股数量、涨停跌停差和收盘位置计算市场温度；主题强度层会按战略主题组的排名、资金流和扩散度修正排序、仓位等级和可买信号。",
+            "feedback_enhancement_factor": "反馈增强层会过滤乱码/异常因子，将筹码缺失视为数据质量而非负面信号，并按市场阶段、更新时间段、回访归因和主题拥挤度进行小幅参数校准。",
             "candidates": [asdict(candidate) for candidate in candidate_library],
         },
         "universe_scan": universe_payload,
         "model_feedback": feedback_payload,
-        "summary": {**counts, "overall_signal": overall_signal, "tracking": tracking_summary},
+        "portfolio_concentration": concentration_payload,
+        "summary": {**counts, "overall_signal": overall_signal, "tracking": tracking_summary, "theme_exposure": theme_exposure},
         "review": review_payload,
         "stocks": rows,
     }

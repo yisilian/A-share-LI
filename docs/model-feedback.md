@@ -146,3 +146,26 @@ GitHub Actions 会在工作日北京时间 10:00、14:30、20:00 自动运行 `s
 2. 主题强度决定同一股票逻辑是否处于主线扩散阶段。
 3. 接入价有效性决定当前价格是否安全。
 4. 三层共同影响最终排序、价格纪律、可买信号和仓位提示。
+
+## 反馈增强层
+
+本轮新增四个模型自检与优化点：
+
+- `model_feedback.cleaning_policy`：声明反馈清洗策略。乱码/异常值因子会被过滤，`筹码暂缺` 只作为数据质量问题，不再直接当负面筹码因子惩罚。
+- `model_feedback.segmentation`：把历史反馈按 `market_regime` 和 `update_phase` 分层统计，避免早盘、尾盘、晚间关注池混用同一组反馈权重。
+- `universe_scan.update_phase` / `update_phase_label`：标记本次更新属于 `10点早盘接入`、`14:30尾盘风控` 或 `20点次日关注`。
+- `portfolio_concentration`：组合层主题拥挤度约束。候选池内同一主题过度集中时，后续同主题股票只做轻微排序降权，不直接否定个股逻辑。
+
+新增单股字段：
+
+- `portfolio_concentration_penalty`：因为同主题拥挤被扣的分数。
+- `portfolio_concentration_note`：本次是否触发组合拥挤度降权的原因。
+- `feedback_market_regime`：该样本进入反馈时的市场阶段。
+- `update_phase_label`：该样本进入反馈时的更新时段。
+
+新增回访字段：
+
+- `review.records[].review_attribution.primary`：回访主归因，例如正反馈、负反馈、等待数据或中性观察。
+- `review.records[].review_attribution.factors`：结构化失败/成功原因，如首推价过高、接入价失效、突破失败、冲高未保护等。
+- `review.records[].review_model_action`：模型下一步应该怎么调，例如收紧接入价、降低突破试探权重、增加止盈/调出反馈权重。
+- `review.summary.attribution_counts` / `model_action_counts`：回访中心对归因和调参动作的汇总。

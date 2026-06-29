@@ -150,17 +150,33 @@ function render() {
   const feedback = data.model_feedback || {};
   const entryFeedback = feedback.entry_effectiveness || {};
   const marketEnvironment = data.universe_scan?.market_environment || {};
+  const segmentation = feedback.segmentation || {};
+  const concentration = data.portfolio_concentration || {};
   const topThemes = data.universe_scan?.theme_strength?.top_groups || [];
   const topThemeText = topThemes.length
     ? `；强主题：${topThemes.slice(0, 3).map((item) => `${item.theme_group}/${item.label}`).join("、")}`
     : "";
+  const phaseText = data.universe_scan?.update_phase_label ? `；更新时段：${data.universe_scan.update_phase_label}` : "";
+  const exposureText = data.summary?.theme_exposure
+    ? `；最终主题分布：${Object.entries(data.summary.theme_exposure).map(([key, value]) => `${key}${value}`).join("、")}`
+    : "";
+  const concentrationText = concentration.schema_version
+    ? `；组合拥挤度：${concentration.penalized_count ?? 0}只候选被轻微降权`
+    : "";
   byId("feedbackStatus").textContent = feedback.schema_version
     ? `反馈模型：${feedback.confidence || "低"}置信；样本 ${feedback.observation_count ?? 0} 条；因子 ${feedback.summary?.factor_count ?? 0} 个；单股修正上限 ±${formatNumber(feedback.score_cap, 2)} 分。${feedback.summary?.note || ""}`
     : "反馈模型：等待历史样本积累。";
-  byId("sourceStatus").textContent = `更新时间：${data.generated_at || "-"}；市场温度：${marketEnvironment.label || "-"} / ${formatSignedNumber(marketEnvironment.temperature_score, 2)}；${marketEnvironment.note || ""}${topThemeText}；数据源：${data.source_status?.quotes || "-"}；${data.source_status?.note || ""}`;
+  byId("sourceStatus").textContent = `更新时间：${data.generated_at || "-"}${phaseText}；市场温度：${marketEnvironment.label || "-"} / ${formatSignedNumber(marketEnvironment.temperature_score, 2)}；${marketEnvironment.note || ""}${topThemeText}${exposureText}${concentrationText}；数据源：${data.source_status?.quotes || "-"}；${data.source_status?.note || ""}`;
 
   if (feedback.schema_version && entryFeedback.schema_version) {
     byId("feedbackStatus").textContent += ` 接入有效性：样本 ${entryFeedback.observation_count ?? 0} 条；触达 ${entryFeedback.touched_observation_count ?? 0} 条；未触达等待 ${entryFeedback.untouched_wait_observation_count ?? 0} 条；接入风险标记 ${data.summary?.entry_risk_flagged ?? 0} 只；可买拦截 ${data.summary?.buy_signal_blocked ?? data.summary?.risk_gated ?? 0} 只；市场降级 ${data.summary?.market_context_blocked ?? 0} 只；安全因子 ${entryFeedback.summary?.factor_count ?? 0} 个。${entryFeedback.summary?.note || ""}`;
+    const marketSegments = segmentation.market_regime_counts
+      ? Object.entries(segmentation.market_regime_counts).map(([key, value]) => `${key}:${value}`).join("、")
+      : "";
+    const phaseSegments = segmentation.update_phase_counts
+      ? Object.entries(segmentation.update_phase_counts).map(([key, value]) => `${key}:${value}`).join("、")
+      : "";
+    byId("feedbackStatus").textContent += ` 分层反馈：市场[${marketSegments || "-"}]；时段[${phaseSegments || "-"}]。`;
   }
 
   const stocks = (data.stocks || []).filter((stock) => {
@@ -213,7 +229,7 @@ function createStockCard(stock) {
   node.querySelector(".score").textContent = formatNumber(stock.score, 1);
   node.querySelector(".logic").textContent = stock.logic || "";
   node.querySelector(".theme").textContent =
-    `${stock.theme || "-"}；主题强度 ${stock.theme_strength_label || "-"} / ${formatNumber(stock.theme_strength_score)}；市场 ${stock.market_temperature_label || "-"}`;
+    `${stock.theme || "-"}；主题强度 ${stock.theme_strength_label || "-"} / ${formatNumber(stock.theme_strength_score)}；市场 ${stock.market_temperature_label || "-"}；组合降权 ${formatSignedNumber(stock.portfolio_concentration_penalty, 3)}`;
   node.querySelector(".layer-one").textContent = stock.layer_one_rank
     ? `全主板第 ${stock.layer_one_rank} 名，初筛分 ${formatNumber(stock.layer_one_score)}，当日涨跌 ${formatPercent(stock.layer_one_pct_chg)}，来源：${stock.candidate_source || "-"}`
     : `未进入全主板快照初筛，来源：${stock.candidate_source || "-"}`;
@@ -226,7 +242,7 @@ function createStockCard(stock) {
   node.querySelector(".chip-detail").textContent =
     `${stock.chip_label || "筹码暂缺"}：获利比例 ${formatPercent(stock.chip_profit_ratio)}，平均成本 ${formatNumber(stock.chip_avg_cost)}，现价偏离平均成本 ${formatPercent(stock.chip_cost_gap_pct)}，70%集中度 ${formatPercent(stock.chip_concentration_70)}，90%集中度 ${formatPercent(stock.chip_concentration_90)}，筹码分 ${formatNumber(stock.chip_score)}，模型加减分 ${formatNumber(stock.chip_bonus)}。${stock.chip_note || "筹码只作成本结构与兑现压力验证。"} 来源：${stock.chip_source || "-"}。`;
   node.querySelector(".feedback-detail").textContent =
-    `${stock.feedback_label || "回访样本不足"}：反馈分 ${formatSignedNumber(stock.feedback_bonus, 3)}，整体置信 ${stock.feedback_confidence || "低"}。${formatFeedbackFactors(stock)}。${formatPriceFeedback(stock)}`;
+    `${stock.feedback_label || "回访样本不足"}：反馈分 ${formatSignedNumber(stock.feedback_bonus, 3)}，整体置信 ${stock.feedback_confidence || "低"}。${formatFeedbackFactors(stock)}。${formatPriceFeedback(stock)} ${stock.portfolio_concentration_note || ""}`;
   node.querySelector(".entry-detail").textContent =
     `推荐接入价 ${formatNumber(stock.recommended_entry_price)}，接入区间 ${formatNumber(stock.entry_price_lower)}-${formatNumber(stock.entry_price_upper)}，现价偏离 ${formatPercent(stock.entry_gap_pct)}。原接入价 ${formatNumber(stock.base_recommended_entry_price)}。${stock.entry_price_note || ""}`;
   node.querySelector(".feedback-detail").textContent += ` ${formatEntrySafety(stock)}`;
@@ -287,6 +303,9 @@ function createReviewRow(record) {
   node.querySelector(".review-status").textContent = record.review_status || "-";
   if (record.entry_return_from_first_entry_pct !== null && record.entry_return_from_first_entry_pct !== undefined) {
     node.querySelector(".review-status").textContent += ` · 接入${formatPercent(record.entry_return_from_first_entry_pct)} / 回撤${formatPercent(record.entry_drawdown_from_first_entry_pct)}`;
+  }
+  if (record.review_primary_attribution || record.review_model_action) {
+    node.querySelector(".review-status").textContent += ` · 归因 ${record.review_primary_attribution || "-"} · ${record.review_model_action || ""}`;
   }
   node.title = record.comment || "";
 
