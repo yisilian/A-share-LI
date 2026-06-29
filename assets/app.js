@@ -149,13 +149,18 @@ function render() {
   byId("modelDescription").textContent = data.model?.description || byId("modelDescription").textContent;
   const feedback = data.model_feedback || {};
   const entryFeedback = feedback.entry_effectiveness || {};
+  const marketEnvironment = data.universe_scan?.market_environment || {};
+  const topThemes = data.universe_scan?.theme_strength?.top_groups || [];
+  const topThemeText = topThemes.length
+    ? `；强主题：${topThemes.slice(0, 3).map((item) => `${item.theme_group}/${item.label}`).join("、")}`
+    : "";
   byId("feedbackStatus").textContent = feedback.schema_version
     ? `反馈模型：${feedback.confidence || "低"}置信；样本 ${feedback.observation_count ?? 0} 条；因子 ${feedback.summary?.factor_count ?? 0} 个；单股修正上限 ±${formatNumber(feedback.score_cap, 2)} 分。${feedback.summary?.note || ""}`
     : "反馈模型：等待历史样本积累。";
-  byId("sourceStatus").textContent = `更新时间：${data.generated_at || "-"}；数据源：${data.source_status?.quotes || "-"}；${data.source_status?.note || ""}`;
+  byId("sourceStatus").textContent = `更新时间：${data.generated_at || "-"}；市场温度：${marketEnvironment.label || "-"} / ${formatSignedNumber(marketEnvironment.temperature_score, 2)}；${marketEnvironment.note || ""}${topThemeText}；数据源：${data.source_status?.quotes || "-"}；${data.source_status?.note || ""}`;
 
   if (feedback.schema_version && entryFeedback.schema_version) {
-    byId("feedbackStatus").textContent += ` 接入有效性：样本 ${entryFeedback.observation_count ?? 0} 条；触达 ${entryFeedback.touched_observation_count ?? 0} 条；未触达等待 ${entryFeedback.untouched_wait_observation_count ?? 0} 条；接入风险标记 ${data.summary?.entry_risk_flagged ?? 0} 只；可买拦截 ${data.summary?.buy_signal_blocked ?? data.summary?.risk_gated ?? 0} 只；安全因子 ${entryFeedback.summary?.factor_count ?? 0} 个。${entryFeedback.summary?.note || ""}`;
+    byId("feedbackStatus").textContent += ` 接入有效性：样本 ${entryFeedback.observation_count ?? 0} 条；触达 ${entryFeedback.touched_observation_count ?? 0} 条；未触达等待 ${entryFeedback.untouched_wait_observation_count ?? 0} 条；接入风险标记 ${data.summary?.entry_risk_flagged ?? 0} 只；可买拦截 ${data.summary?.buy_signal_blocked ?? data.summary?.risk_gated ?? 0} 只；市场降级 ${data.summary?.market_context_blocked ?? 0} 只；安全因子 ${entryFeedback.summary?.factor_count ?? 0} 个。${entryFeedback.summary?.note || ""}`;
   }
 
   const stocks = (data.stocks || []).filter((stock) => {
@@ -207,7 +212,8 @@ function createStockCard(stock) {
   node.querySelector(".tracking-return").classList.add(returnClass(trackingReturn));
   node.querySelector(".score").textContent = formatNumber(stock.score, 1);
   node.querySelector(".logic").textContent = stock.logic || "";
-  node.querySelector(".theme").textContent = stock.theme || "-";
+  node.querySelector(".theme").textContent =
+    `${stock.theme || "-"}；主题强度 ${stock.theme_strength_label || "-"} / ${formatNumber(stock.theme_strength_score)}；市场 ${stock.market_temperature_label || "-"}`;
   node.querySelector(".layer-one").textContent = stock.layer_one_rank
     ? `全主板第 ${stock.layer_one_rank} 名，初筛分 ${formatNumber(stock.layer_one_score)}，当日涨跌 ${formatPercent(stock.layer_one_pct_chg)}，来源：${stock.candidate_source || "-"}`
     : `未进入全主板快照初筛，来源：${stock.candidate_source || "-"}`;

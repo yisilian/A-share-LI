@@ -127,3 +127,22 @@ GitHub Actions 会在工作日北京时间 10:00、14:30、20:00 自动运行 `s
 - `summary.buy_signal_blocked`：当前股票池中可买信号被接入风控取消的数量；`summary.risk_gated` 保留为兼容别名。
 - `review.records[].entry_return_from_first_entry_pct`：按首次接入参考价计算的回访收益。
 - `review.records[].entry_drawdown_from_first_entry_pct`：按首次接入参考价计算的回访最大不利回撤。
+
+## 市场环境与主题强度层
+
+新增 `market_environment` 与 `theme_strength` 两层，用来回答“今天适不适合买股票、适合买哪条线”：
+
+- `universe_scan.market_environment`：基于全主板涨跌扩散、强弱股数量、涨停跌停差、收盘位置和成交额计算市场温度。
+- `universe_scan.theme_strength`：按战略主题组统计主题库股票的全主板排名、涨跌扩散、强势股占比和资金流，形成主题温度榜。
+- `market_context_score_bonus`：市场温度和主题强度给单股排序带来的上下文修正。
+- `market_context_price_adjustment_pct`：市场/主题环境对接入价纪律的轻微修正。
+- `market_context_block_buy`：弱市或防守市中，原本可买但环境不支持放大试错时，临时降级为等待。
+- `decision_grade` / `decision_grade_label`：把单股输出拆成 A/B/C/D 观察等级，减少“可买/不可买”的二元误读。
+- `summary.market_context_blocked`：当前股票池中被市场环境层降级的可买信号数量。
+
+优先级关系：
+
+1. 全主板市场温度决定当天风险偏好。
+2. 主题强度决定同一股票逻辑是否处于主线扩散阶段。
+3. 接入价有效性决定当前价格是否安全。
+4. 三层共同影响最终排序、价格纪律、可买信号和仓位提示。

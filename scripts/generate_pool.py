@@ -693,6 +693,228 @@ def fetch_market_fund_flow() -> tuple[dict[str, dict[str, Any]], dict[str, Any]]
     }
 
 
+def market_temperature_label(score: Any) -> tuple[str, str]:
+    value = safe_float(score)
+    if value is None:
+        return "市场温度未知", "unknown"
+    if value >= 28:
+        return "强势可攻", "strong"
+    if value >= 10:
+        return "偏暖可选", "warm"
+    if value > -10:
+        return "震荡均衡", "neutral"
+    if value > -28:
+        return "偏弱谨慎", "cautious"
+    return "防守等待", "defensive"
+
+
+def build_market_environment(mainboard: pd.DataFrame, intraday_position: pd.Series) -> dict[str, Any]:
+    count = int(len(mainboard))
+    pct = pd.to_numeric(mainboard["pct_chg"], errors="coerce").dropna()
+    amount = pd.to_numeric(mainboard["amount"], errors="coerce").fillna(0)
+    if count <= 0 or pct.empty:
+        return {
+            "label": "市场温度未知",
+            "regime": "unknown",
+            "temperature_score": None,
+            "note": "全市场快照不足，市场环境层暂不参与可买信号调整。",
+        }
+
+    advancers = int((pct > 0).sum())
+    decliners = int((pct < 0).sum())
+    strong_count = int((pct >= 5).sum())
+    weak_count = int((pct <= -5).sum())
+    limit_up_count = int((pct >= 9.5).sum())
+    limit_down_count = int((pct <= -9.5).sum())
+    up_ratio = advancers / len(pct) * 100
+    strong_ratio = strong_count / len(pct) * 100
+    weak_ratio = weak_count / len(pct) * 100
+    limit_spread_ratio = (limit_up_count - limit_down_count) / len(pct) * 100
+    median_pct = float(pct.median())
+    avg_pct = float(pct.mean())
+    high_close_ratio = float((intraday_position >= 0.65).sum() / count * 100)
+    low_close_ratio = float((intraday_position <= 0.35).sum() / count * 100)
+    total_amount = float(amount.sum())
+
+    score = (
+        (up_ratio - 50) * 0.75
+        + median_pct * 7.0
+        + (strong_ratio - weak_ratio) * 1.15
+        + limit_spread_ratio * 4.2
+        + (high_close_ratio - low_close_ratio) * 0.22
+    )
+    score = clamp(score, -60, 60)
+    label, regime = market_temperature_label(score)
+    risk_appetite = clamp(0.55 + score / 90, 0.2, 1.15)
+    score_bonus = clamp(score / 42, -1.0, 0.8)
+    price_adjustment_pct = clamp(score / 55, -1.1, 0.5)
+
+    if regime in {"strong", "warm"}:
+        note = "市场扩散和情绪较好，可保留少量顺势试错，但仍不追高。"
+    elif regime == "neutral":
+        note = "市场处于震荡均衡，个股必须依赖行业强度和接入价纪律筛选。"
+    else:
+        note = "市场温度偏弱，模型会收紧可买信号和接入价格，优先等待确认。"
+
+    return {
+        "label": label,
+        "regime": regime,
+        "temperature_score": round_or_none(score, 2),
+        "risk_appetite": round_or_none(risk_appetite, 3),
+        "score_bonus": round_or_none(score_bonus, 3),
+        "price_adjustment_pct": round_or_none(price_adjustment_pct, 3),
+        "mainboard_count": count,
+        "advancers": advancers,
+        "decliners": decliners,
+        "up_ratio_pct": round_or_none(up_ratio),
+        "avg_pct_chg": round_or_none(avg_pct),
+        "median_pct_chg": round_or_none(median_pct),
+        "strong_count": strong_count,
+        "weak_count": weak_count,
+        "limit_up_count": limit_up_count,
+        "limit_down_count": limit_down_count,
+        "high_close_ratio_pct": round_or_none(high_close_ratio),
+        "low_close_ratio_pct": round_or_none(low_close_ratio),
+        "total_amount": round_or_none(total_amount, 0),
+        "note": note,
+    }
+
+
+def theme_strength_label(score: Any) -> tuple[str, str]:
+    value = safe_float(score)
+    if value is None:
+        return "主题强度未知", "unknown"
+    if value >= 72:
+        return "强势主线", "strong"
+    if value >= 58:
+        return "活跃偏强", "active"
+    if value >= 44:
+        return "中性轮动", "neutral"
+    if value >= 30:
+        return "转弱观察", "weakening"
+    return "弱势回避", "weak"
+
+
+def build_theme_strength(candidate_library: list[Candidate], universe_by_code: dict[str, dict[str, Any]], mainboard_count: int) -> dict[str, Any]:
+    groups: dict[str, dict[str, Any]] = {}
+    for candidate in candidate_library:
+        group_name = theme_group(candidate.theme)
+        bucket = groups.setdefault(
+            group_name,
+            {
+                "theme_group": group_name,
+                "library_count": 0,
+                "matched_count": 0,
+                "layer_score_sum": 0.0,
+                "rank_score_sum": 0.0,
+                "pct_sum": 0.0,
+                "positive_count": 0,
+                "strong_count": 0,
+                "fund_score_sum": 0.0,
+                "fund_count": 0,
+                "top120_count": 0,
+                "members": [],
+            },
+        )
+        bucket["library_count"] += 1
+        scan = universe_by_code.get(candidate.code)
+        if not scan:
+            continue
+        layer_score = safe_float(scan.get("layer_one_score")) or 0.0
+        pct_chg = safe_float(scan.get("pct_chg")) or 0.0
+        rank = safe_float(scan.get("layer_one_rank"))
+        rank_score = 0.0
+        if rank is not None and mainboard_count:
+            rank_score = max(0.0, 100 * (1 - (rank - 1) / max(1, mainboard_count - 1)))
+        fund_score = safe_float(scan.get("fund_flow_score"))
+        bucket["matched_count"] += 1
+        bucket["layer_score_sum"] += layer_score
+        bucket["rank_score_sum"] += rank_score
+        bucket["pct_sum"] += pct_chg
+        bucket["positive_count"] += 1 if pct_chg > 0 else 0
+        bucket["strong_count"] += 1 if pct_chg >= 5 else 0
+        if rank is not None and rank <= 120:
+            bucket["top120_count"] += 1
+        if fund_score is not None:
+            bucket["fund_score_sum"] += fund_score
+            bucket["fund_count"] += 1
+        bucket["members"].append(
+            {
+                "code": candidate.code,
+                "name": candidate.name,
+                "rank": int(rank) if rank is not None else None,
+                "pct_chg": round_or_none(pct_chg),
+                "layer_one_score": round_or_none(layer_score),
+            }
+        )
+
+    rows: list[dict[str, Any]] = []
+    for group_name, bucket in groups.items():
+        matched = int(bucket["matched_count"])
+        if matched:
+            avg_layer = bucket["layer_score_sum"] / matched
+            avg_rank_score = bucket["rank_score_sum"] / matched
+            avg_pct = bucket["pct_sum"] / matched
+            positive_ratio = bucket["positive_count"] / matched * 100
+            strong_ratio = bucket["strong_count"] / matched * 100
+            top120_ratio = bucket["top120_count"] / matched * 100
+            avg_fund = bucket["fund_score_sum"] / bucket["fund_count"] if bucket["fund_count"] else 0.0
+            raw_strength_score = clamp(
+                avg_layer * 0.42
+                + avg_rank_score * 0.22
+                + positive_ratio * 0.12
+                + strong_ratio * 0.12
+                + top120_ratio * 0.08
+                + avg_fund * 0.35,
+                0,
+                100,
+            )
+            sample_confidence = clamp(matched / 4, 0.0, 1.0)
+            strength_score = 35 + (raw_strength_score - 35) * sample_confidence
+        else:
+            avg_layer = avg_rank_score = avg_pct = positive_ratio = strong_ratio = top120_ratio = avg_fund = 0.0
+            raw_strength_score = 0.0
+            sample_confidence = 0.0
+            strength_score = 0.0
+        label, regime = theme_strength_label(strength_score)
+        members = sorted(
+            bucket["members"],
+            key=lambda item: item["rank"] if item.get("rank") is not None else 999999,
+        )[:8]
+        rows.append(
+            {
+                "theme_group": group_name,
+                "label": label,
+                "regime": regime,
+                "strength_score": round_or_none(strength_score, 2),
+                "raw_strength_score": round_or_none(raw_strength_score, 2),
+                "sample_confidence": round_or_none(sample_confidence, 3),
+                "score_bonus": round_or_none(clamp((strength_score - 50) / 35, -0.7, 0.9), 3),
+                "library_count": int(bucket["library_count"]),
+                "matched_count": matched,
+                "avg_layer_score": round_or_none(avg_layer),
+                "avg_rank_score": round_or_none(avg_rank_score),
+                "avg_pct_chg": round_or_none(avg_pct),
+                "positive_ratio_pct": round_or_none(positive_ratio),
+                "strong_ratio_pct": round_or_none(strong_ratio),
+                "top120_ratio_pct": round_or_none(top120_ratio),
+                "avg_fund_flow_score": round_or_none(avg_fund),
+                "members": members,
+            }
+        )
+
+    rows.sort(key=lambda item: (item.get("strength_score") or 0, item.get("matched_count") or 0), reverse=True)
+    for index, row in enumerate(rows, start=1):
+        row["rank"] = index
+    return {
+        "schema_version": "1.0",
+        "method": "按战略主题库内股票在全主板快照中的排名、涨跌扩散、强势股占比和资金流估算主题温度。",
+        "group_count": len(rows),
+        "by_group": {row["theme_group"]: row for row in rows},
+        "top_groups": rows[:8],
+    }
+
+
 def build_universe_scan(candidate_library: list[Candidate]) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
     import akshare as ak
 
@@ -773,6 +995,7 @@ def build_universe_scan(candidate_library: list[Candidate]) -> tuple[dict[str, d
     ).round(2)
     mainboard = mainboard.sort_values(["layer_one_score", "amount"], ascending=[False, False]).reset_index(drop=True)
     mainboard["layer_one_rank"] = mainboard.index + 1
+    market_environment = build_market_environment(mainboard, intraday_position)
 
     universe_by_code: dict[str, dict[str, Any]] = {}
     for row in mainboard.itertuples(index=False):
@@ -790,6 +1013,7 @@ def build_universe_scan(candidate_library: list[Candidate]) -> tuple[dict[str, d
         }
 
     library_codes = {candidate.code for candidate in candidate_library}
+    theme_strength = build_theme_strength(candidate_library, universe_by_code, int(len(mainboard)))
     matched = [record for code, record in universe_by_code.items() if code in library_codes]
     top_mainboard = [
         {
@@ -821,6 +1045,8 @@ def build_universe_scan(candidate_library: list[Candidate]) -> tuple[dict[str, d
         "shortlist_limit": DEEP_ANALYSIS_LIMIT,
         "export_limit": UNIVERSE_EXPORT_LIMIT,
         "note": "第一层扫描全主板行情快照，第二层只对可解释战略主题库中的入围标的做深度打分。",
+        "market_environment": market_environment,
+        "theme_strength": theme_strength,
         "fund_flow": fund_flow_payload,
         "top_mainboard": top_mainboard,
         "matched_library": sorted(matched, key=lambda item: item["layer_one_rank"])[:UNIVERSE_EXPORT_LIMIT],
@@ -845,6 +1071,11 @@ def select_candidates_from_universe(candidate_library: list[Candidate]) -> tuple
                 "live_quote_snapshot_at": None,
                 "live_close": None,
                 "layer_one_bonus": 0.0,
+                "theme_group": theme_group(candidate.theme),
+                "theme_strength_score": None,
+                "theme_strength_label": "主题强度未知",
+                "theme_strength_rank": None,
+                "theme_strength_bonus": 0.0,
                 **empty_fund_flow_meta(),
             }
             for candidate in candidate_library[:DEEP_ANALYSIS_LIMIT]
@@ -861,6 +1092,22 @@ def select_candidates_from_universe(candidate_library: list[Candidate]) -> tuple
             "shortlist_limit": DEEP_ANALYSIS_LIMIT,
             "export_limit": UNIVERSE_EXPORT_LIMIT,
             "note": warnings[-1],
+            "market_environment": {
+                "label": "市场温度未知",
+                "regime": "unknown",
+                "temperature_score": None,
+                "risk_appetite": None,
+                "score_bonus": 0.0,
+                "price_adjustment_pct": 0.0,
+                "note": "全市场扫描失败，市场环境层暂不参与信号调整。",
+            },
+            "theme_strength": {
+                "schema_version": "1.0",
+                "method": "fallback",
+                "group_count": 0,
+                "by_group": {},
+                "top_groups": [],
+            },
             "top_mainboard": [],
             "matched_library": [],
         }
@@ -869,12 +1116,16 @@ def select_candidates_from_universe(candidate_library: list[Candidate]) -> tuple
 
     scored: list[tuple[float, Candidate]] = []
     meta_by_code: dict[str, dict[str, Any]] = {}
+    theme_strength_by_group = (universe_payload.get("theme_strength") or {}).get("by_group", {})
     for candidate in candidate_library:
         scan = universe_by_code.get(candidate.code)
         if not scan:
             continue
+        group_name = theme_group(candidate.theme)
+        theme_meta = theme_strength_by_group.get(group_name, {})
+        theme_bonus = safe_float(theme_meta.get("score_bonus")) or 0.0
         first_layer_score = safe_float(scan.get("layer_one_score")) or 0.0
-        combined_score = first_layer_score + candidate.base_score * 7
+        combined_score = first_layer_score + candidate.base_score * 7 + theme_bonus * 10
         meta_by_code[candidate.code] = {
             "candidate_source": "全主板第一层入围",
             "layer_one_score": round_or_none(first_layer_score),
@@ -885,6 +1136,11 @@ def select_candidates_from_universe(candidate_library: list[Candidate]) -> tuple
             "live_quote_snapshot_at": scan.get("quote_snapshot_at") or universe_payload.get("quote_snapshot_at"),
             "live_close": scan.get("close"),
             "layer_one_bonus": round_or_none(min(2.2, first_layer_score / 100 * 2.2)),
+            "theme_group": group_name,
+            "theme_strength_score": theme_meta.get("strength_score"),
+            "theme_strength_label": theme_meta.get("label") or "主题强度未知",
+            "theme_strength_rank": theme_meta.get("rank"),
+            "theme_strength_bonus": round_or_none(theme_bonus, 3),
             **fund_meta_from_record(scan),
         }
         scored.append((combined_score, candidate))
@@ -905,6 +1161,11 @@ def select_candidates_from_universe(candidate_library: list[Candidate]) -> tuple
                 "live_quote_snapshot_at": None,
                 "live_close": None,
                 "layer_one_bonus": 0.0,
+                "theme_group": theme_group(candidate.theme),
+                "theme_strength_score": None,
+                "theme_strength_label": "主题强度未知",
+                "theme_strength_rank": None,
+                "theme_strength_bonus": 0.0,
                 **empty_fund_flow_meta(),
             }
             scored.append((candidate.base_score * 7, candidate))
@@ -1968,6 +2229,114 @@ def apply_feedback_price_adjustment(
     return row
 
 
+def apply_market_theme_context(row: dict[str, Any], market_environment: dict[str, Any]) -> dict[str, Any]:
+    market_score = safe_float(market_environment.get("temperature_score")) or 0.0
+    market_bonus = safe_float(market_environment.get("score_bonus")) or 0.0
+    market_price_adjustment = safe_float(market_environment.get("price_adjustment_pct")) or 0.0
+    market_regime = str(market_environment.get("regime") or "unknown")
+    market_label = str(market_environment.get("label") or "市场温度未知")
+    theme_bonus = safe_float(row.get("theme_strength_bonus")) or 0.0
+    theme_score = safe_float(row.get("theme_strength_score"))
+    theme_label = str(row.get("theme_strength_label") or "主题强度未知")
+    context_bonus = clamp(market_bonus * 0.65 + theme_bonus * 0.75, -1.2, 1.1)
+    context_price_adjustment = clamp(market_price_adjustment * 0.55 + theme_bonus * 0.22, -1.1, 0.55)
+    if abs(context_bonus) < 0.01:
+        context_bonus = 0.0
+    if abs(context_price_adjustment) < 0.01:
+        context_price_adjustment = 0.0
+
+    row["market_temperature_score"] = market_environment.get("temperature_score")
+    row["market_temperature_label"] = market_label
+    row["market_regime"] = market_regime
+    row["market_risk_appetite"] = market_environment.get("risk_appetite")
+    row["market_context_score_bonus"] = round_or_none(context_bonus, 3)
+    row["market_context_price_adjustment_pct"] = round_or_none(context_price_adjustment, 3)
+    row["market_context_note"] = f"市场温度：{market_label}；主题强度：{theme_label}。{market_environment.get('note') or ''}"
+
+    if context_price_adjustment != 0:
+        for key in (
+            "recommended_entry_price",
+            "entry_price_lower",
+            "entry_price_upper",
+            "buyable_price",
+            "buyable_price_lower",
+            "buyable_price_upper",
+            "next_buy_trigger_price",
+            "breakout_buy_upper_price",
+        ):
+            row.setdefault(f"base_market_context_{key}", row.get(key))
+
+        invalid = row.get("invalid_price")
+        no_chase = row.get("no_chase_price")
+        entry_upper = adjusted_price(row.get("entry_price_upper"), context_price_adjustment, invalid, no_chase)
+        entry_lower = adjusted_price(row.get("entry_price_lower"), context_price_adjustment, invalid, entry_upper)
+        recommended_entry = adjusted_price(row.get("recommended_entry_price"), context_price_adjustment, entry_lower, entry_upper)
+        if entry_lower is not None:
+            row["entry_price_lower"] = round_or_none(entry_lower)
+        if entry_upper is not None:
+            row["entry_price_upper"] = round_or_none(entry_upper)
+        if recommended_entry is not None:
+            row["recommended_entry_price"] = round_or_none(recommended_entry)
+            close = safe_float(row.get("close"))
+            row["entry_gap_pct"] = round_or_none((close / recommended_entry - 1) * 100 if close else None)
+        if entry_lower is not None and entry_upper is not None:
+            row["watch_zone"] = f"{entry_lower:.2f}-{entry_upper:.2f}"
+
+        for key in ("buyable_price", "buyable_price_lower", "buyable_price_upper", "breakout_buy_upper_price", "next_buy_trigger_price"):
+            updated = adjusted_price(row.get(key), context_price_adjustment, invalid, no_chase)
+            if updated is not None:
+                row[key] = round_or_none(updated)
+
+    market_block = False
+    if row.get("is_buyable_now") and market_regime in {"defensive", "cautious"}:
+        theme_is_strong = theme_score is not None and theme_score >= 58
+        if market_regime == "defensive" or row.get("buy_signal_key") == "breakout_buy" or not theme_is_strong:
+            market_block = True
+
+    if market_block:
+        row["market_context_block_buy"] = True
+        row["risk_adjusted_buyable_price"] = row.get("buyable_price")
+        row["is_buyable_now"] = False
+        row.setdefault("base_buy_signal_key", row.get("buy_signal_key"))
+        row.setdefault("base_buy_signal_label", row.get("buy_signal_label"))
+        row["buy_signal_key"] = "market_wait"
+        row["buy_signal_label"] = "市场温度等待"
+        row["buy_price_path"] = "等待市场温度修复+个股重新确认"
+        row["next_buy_trigger_price"] = row.get("recommended_entry_price") or row.get("next_buy_trigger_price")
+        row["buyable_price"] = None
+        row["buy_price_note"] = (
+            f"{row.get('buy_price_note') or ''} 市场环境层认为当前不宜放大试错，"
+            "先取消可买观察信号，等待市场温度或主题扩散修复。"
+        ).strip()
+    else:
+        row["market_context_block_buy"] = False
+
+    if row.get("is_buyable_now") and not row.get("entry_safety_risk_flag") and market_regime in {"strong", "warm", "neutral"}:
+        grade = "A"
+        grade_label = "A级：可小仓试错"
+    elif row.get("is_buyable_now"):
+        grade = "B"
+        grade_label = "B级：低仓验证"
+    elif row.get("market_context_block_buy") or row.get("entry_safety_risk_flag"):
+        grade = "C"
+        grade_label = "C级：有逻辑但价格/环境不安全"
+    elif row.get("status_key") in {"watch", "breakout"} or (theme_score is not None and theme_score >= 58):
+        grade = "B"
+        grade_label = "B级：观察等待触发"
+    elif row.get("status_key") == "avoid":
+        grade = "D"
+        grade_label = "D级：暂不追高"
+    else:
+        grade = "C"
+        grade_label = "C级：等待价格接近"
+
+    row["decision_grade"] = grade
+    row["decision_grade_label"] = grade_label
+    row["score"] = round((safe_float(row.get("score")) or 0.0) + context_bonus, 1)
+    row["position_hint"] = f"{grade_label}。{row.get('position_hint') or ''} {row['market_context_note']}"
+    return row
+
+
 def merge_review_record(existing: dict[str, Any], incoming: dict[str, Any]) -> dict[str, Any]:
     merged = {**existing, **incoming}
     first_keys = (
@@ -2676,6 +3045,11 @@ def build_payload() -> dict[str, Any]:
             row["layer_one_rank"] = meta.get("layer_one_rank")
             row["layer_one_pct_chg"] = meta.get("layer_one_pct_chg")
             row["layer_one_amount"] = meta.get("layer_one_amount")
+            row["theme_group"] = meta.get("theme_group") or theme_group(candidate.theme)
+            row["theme_strength_score"] = meta.get("theme_strength_score")
+            row["theme_strength_label"] = meta.get("theme_strength_label")
+            row["theme_strength_rank"] = meta.get("theme_strength_rank")
+            row["theme_strength_bonus"] = meta.get("theme_strength_bonus")
             for key in FUND_FLOW_KEYS:
                 row[key] = meta.get(key)
             rows.append(row)
@@ -2686,6 +3060,7 @@ def build_payload() -> dict[str, Any]:
         raise RuntimeError("; ".join(errors) or "no rows generated")
 
     as_of_date = max(row["as_of_date"] for row in rows)
+    market_environment = universe_payload.get("market_environment") or {}
     feedback_payload = build_model_feedback(rows, as_of_date)
     for row in rows:
         feedback_meta = feedback_effect_for_row(row, feedback_payload)
@@ -2695,6 +3070,7 @@ def build_payload() -> dict[str, Any]:
         apply_feedback_price_adjustment(row, feedback_meta, entry_safety_meta)
         feedback_bonus = safe_float(feedback_meta.get("feedback_bonus")) or 0.0
         row["score"] = round(row["score"] + feedback_bonus, 1)
+        apply_market_theme_context(row, market_environment)
 
     rows.sort(key=lambda row: row["score"], reverse=True)
     rows = rows[:FINAL_POOL_SIZE]
@@ -2720,9 +3096,16 @@ def build_payload() -> dict[str, Any]:
         "buyable_breakout": sum(1 for row in rows if row.get("buy_signal_key") == "breakout_buy"),
         "entry_risk_flagged": sum(1 for row in rows if row.get("entry_safety_risk_flag")),
         "buy_signal_blocked": sum(1 for row in rows if row.get("entry_safety_block_buy")),
+        "market_context_blocked": sum(1 for row in rows if row.get("market_context_block_buy")),
+        "decision_grade_a": sum(1 for row in rows if row.get("decision_grade") == "A"),
+        "decision_grade_b": sum(1 for row in rows if row.get("decision_grade") == "B"),
+        "decision_grade_c": sum(1 for row in rows if row.get("decision_grade") == "C"),
+        "decision_grade_d": sum(1 for row in rows if row.get("decision_grade") == "D"),
     }
     counts["risk_gated"] = counts["buy_signal_blocked"]
-    if counts["buy_signal_blocked"]:
+    if counts["market_context_blocked"]:
+        overall_signal = f"{counts['market_context_blocked']}只可买信号被市场环境层降级"
+    elif counts["buy_signal_blocked"]:
         overall_signal = f"{counts['buy_signal_blocked']}只可买信号被回访接入风控拦截"
     elif counts["buyable"]:
         risk_suffix = f"，{counts['entry_risk_flagged']}只带接入风险标记" if counts["entry_risk_flagged"] else ""
@@ -2759,6 +3142,7 @@ def build_payload() -> dict[str, Any]:
             "feedback_factor": "回访中心历史表现会按信号归因形成反馈分；低样本阶段强制收缩并限制单股影响。",
             "price_feedback_factor": "推荐接入价和可买价会跟随回访反馈做小幅纪律校正；正反馈略放宽，负反馈收紧，不改变不追高线。",
             "entry_safety_factor": "接入有效性层会复盘历史可买/触达/未触达接入价样本的后续收益、最大不利回撤和暴跌率；风险偏高时先标记接入风险并下压接入价，只有原本可买的信号才会被取消为 risk_wait。",
+            "market_context_factor": "市场环境层会根据全主板涨跌扩散、强弱股数量、涨停跌停差和收盘位置计算市场温度；主题强度层会按战略主题组的排名、资金流和扩散度修正排序、仓位等级和可买信号。",
             "candidates": [asdict(candidate) for candidate in candidate_library],
         },
         "universe_scan": universe_payload,
