@@ -103,17 +103,24 @@ GitHub Actions 会在工作日北京时间 10:00、14:30、20:00 自动运行 `s
 
 新增 `entry_effectiveness` 层，专门回答“按当时推荐接入价/可买价介入后，是否容易出现较大回撤”：
 
-- 样本来源：历史 `data/history/*.json` 快照中，处于可买入状态，或现价贴近接入价的记录。
-- 计算口径：按当时 `buyable_price` 优先，其次 `recommended_entry_price` 作为接入参考价。
-- 复盘指标：接入后收益、最大不利回撤、命中率、暴跌率。
+- 样本来源：历史 `data/history/*.json` 快照中，所有存在 `recommended_entry_price` 的记录都会进入接入价复盘。
+- 样本分层：`actual_buyable` 表示当时已经给出可买价，`touched_entry` 表示后续最低价触达推荐接入价，`untouched_wait` 表示后续没有触达、属于等待价。
+- 计算口径：`actual_buyable` 优先使用当时 `buyable_price`，其余使用 `recommended_entry_price` 作为接入参考价。
+- 复盘指标：总体接入价收益、触达后收益、未触达错过收益、触达率、最大不利回撤、命中率、暴跌率。
 - 暴跌定义：后续收益低于 `-5%`，或期间最大不利回撤低于 `-7%`。
-- 使用方式：只用于调整接入价和可买价；风险偏高时会下压价格，极端时取消当前 `is_buyable_now` 标记，改为 `risk_wait`。
+- 使用方式：触达样本用于判断“按价买入后是否容易暴跌”；未触达等待样本只用于判断接入价是否过于保守，不直接放大可买入信号。
+- 风控方式：风险偏高时会下压推荐接入价和可买价；极端时取消当前 `is_buyable_now` 标记，改为 `risk_wait`。
 
 新增字段：
 
 - `model_feedback.entry_effectiveness`：全局接入价有效性统计。
+- `model_feedback.entry_effectiveness.touched_observation_count`：触达接入价或当时可买的样本数。
+- `model_feedback.entry_effectiveness.untouched_wait_observation_count`：未触达等待价的样本数。
 - `entry_safety_adjustment_pct`：单股接入安全层带来的价格调整。
 - `entry_safety_label` / `entry_safety_note`：单股接入风险解释。
+- `entry_safety_factors[].avg_touch_return_pct`：同类触达样本买入后的平均收益。
+- `entry_safety_factors[].avg_missed_return_pct`：同类未触达等待样本后续涨跌，用来判断接入价是否过保守。
+- `entry_safety_factors[].touch_rate_pct`：同类样本触达推荐接入价的比例。
 - `entry_safety_block_buy`：是否因历史接入风险取消当前可买入标记。
 - `review.records[].entry_return_from_first_entry_pct`：按首次接入参考价计算的回访收益。
 - `review.records[].entry_drawdown_from_first_entry_pct`：按首次接入参考价计算的回访最大不利回撤。

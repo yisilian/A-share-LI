@@ -99,7 +99,7 @@ const formatEntrySafety = (stock) => {
         .slice(0, 2)
         .map(
           (factor) =>
-            `${factor.label}: ${formatPercent(factor.price_adjustment_pct, 3)}, 接入后${formatPercent(factor.avg_entry_return_pct)}, 回撤${formatPercent(factor.avg_adverse_drawdown_pct)}, 暴跌率${formatPercent(factor.crash_rate_pct)}`
+            `${factor.label}: ${formatPercent(factor.price_adjustment_pct, 3)}, 触达后${formatPercent(factor.avg_touch_return_pct)}, 未触达错过${formatPercent(factor.avg_missed_return_pct)}, 触达率${formatPercent(factor.touch_rate_pct)}, 回撤${formatPercent(factor.avg_adverse_drawdown_pct)}, 暴跌率${formatPercent(factor.crash_rate_pct)}`
         )
         .join("；")
     : stock.entry_safety_note || "历史接入价样本不足。";
@@ -150,7 +150,7 @@ function render() {
   byId("sourceStatus").textContent = `更新时间：${data.generated_at || "-"}；数据源：${data.source_status?.quotes || "-"}；${data.source_status?.note || ""}`;
 
   if (feedback.schema_version && entryFeedback.schema_version) {
-    byId("feedbackStatus").textContent += ` 接入有效性：样本 ${entryFeedback.observation_count ?? 0} 条；安全因子 ${entryFeedback.summary?.factor_count ?? 0} 个。${entryFeedback.summary?.note || ""}`;
+    byId("feedbackStatus").textContent += ` 接入有效性：样本 ${entryFeedback.observation_count ?? 0} 条；触达 ${entryFeedback.touched_observation_count ?? 0} 条；未触达等待 ${entryFeedback.untouched_wait_observation_count ?? 0} 条；安全因子 ${entryFeedback.summary?.factor_count ?? 0} 个。${entryFeedback.summary?.note || ""}`;
   }
 
   const stocks = (data.stocks || []).filter((stock) => {

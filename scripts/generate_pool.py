@@ -82,6 +82,7 @@ FEEDBACK_DIMENSION_WEIGHTS = {
     "entry_gap": 0.7,
     "price_source": 0.35,
 }
+FEEDBACK_DIMENSION_LABELS["entry_sample_type"] = "接入样本类型"
 ENTRY_EFFECTIVENESS_DIMENSION_WEIGHTS = {
     "buy_signal": 1.25,
     "status": 1.0,
@@ -90,6 +91,7 @@ ENTRY_EFFECTIVENESS_DIMENSION_WEIGHTS = {
     "chip": 0.85,
     "theme_group": 0.65,
     "layer_rank": 0.45,
+    "entry_sample_type": 1.1,
 }
 
 
@@ -1222,6 +1224,11 @@ def entry_effectiveness_factors(stock: dict[str, Any]) -> list[dict[str, str]]:
 
 
 def entry_reference_price(stock: dict[str, Any]) -> float | None:
+    meta = entry_reference_meta(stock, [])
+    return safe_float(meta.get("price")) if meta else None
+
+
+def entry_reference_meta(stock: dict[str, Any], future_lows: list[float]) -> dict[str, Any] | None:
     close = safe_float(stock.get("close"))
     buyable = safe_float(stock.get("buyable_price"))
     recommended = safe_float(stock.get("recommended_entry_price"))
@@ -1230,14 +1237,46 @@ def entry_reference_price(stock: dict[str, Any]) -> float | None:
     status = stock.get("status_key")
 
     if signal in {"pullback_buy", "breakout_buy"} and buyable:
-        return buyable
+        return {
+            "price": buyable,
+            "sample_type": "actual_buyable",
+            "sample_type_label": "当时可买",
+            "touched": True,
+            "weight": 1.0,
+        }
     if stock.get("is_buyable_now") and buyable:
-        return buyable
-    if recommended and status in {"watch", "breakout"} and entry_gap is not None and entry_gap <= 3:
-        return recommended
-    if recommended and close is not None and close <= recommended * 1.02:
-        return recommended
-    return None
+        return {
+            "price": buyable,
+            "sample_type": "actual_buyable",
+            "sample_type_label": "当时可买",
+            "touched": True,
+            "weight": 1.0,
+        }
+    if not recommended:
+        return None
+
+    touched = any(low <= recommended for low in future_lows if low is not None)
+    if close is not None and close <= recommended * 1.005:
+        touched = True
+    if touched:
+        return {
+            "price": recommended,
+            "sample_type": "touched_entry",
+            "sample_type_label": "后续触达接入价",
+            "touched": True,
+            "weight": 0.75,
+        }
+
+    wait_weight = 0.35
+    if status in {"watch", "breakout"} or (entry_gap is not None and entry_gap <= 8):
+        wait_weight = 0.5
+    return {
+        "price": recommended,
+        "sample_type": "untouched_wait",
+        "sample_type_label": "未触达等待价",
+        "touched": False,
+        "weight": wait_weight,
+    }
 
 
 def future_closes_for_code(snapshots: list[dict[str, Any]], start_index: int, horizon: int, code: str) -> list[float]:
@@ -1252,6 +1291,38 @@ def future_closes_for_code(snapshots: list[dict[str, Any]], start_index: int, ho
                 closes.append(close)
             break
     return closes
+
+
+def future_lows_for_code(
+    snapshots: list[dict[str, Any]],
+    start_index: int,
+    horizon: int,
+    code: str,
+    daily_cache: dict[str, pd.DataFrame],
+) -> list[float]:
+    start_date = parse_date_value(snapshots[start_index].get("as_of_date"))
+    end_index = min(len(snapshots) - 1, start_index + horizon)
+    end_date = parse_date_value(snapshots[end_index].get("as_of_date"))
+    lows: list[float] = []
+
+    if start_date and end_date:
+        try:
+            if code not in daily_cache:
+                daily_cache[code] = load_daily(code)
+            df = daily_cache[code]
+            dates = pd.to_datetime(df["date"]).dt.date
+            window = df[(dates > start_date) & (dates <= end_date)]
+            lows = [
+                value
+                for value in (safe_float(item) for item in window.get("low", []))
+                if value is not None
+            ]
+        except Exception:
+            lows = []
+
+    if not lows:
+        lows = future_closes_for_code(snapshots, start_index, horizon, code)
+    return lows
 
 
 def snapshot_return(start_stock: dict[str, Any], future_stock: dict[str, Any]) -> float | None:
@@ -1338,31 +1409,40 @@ def finalize_feedback_factor(raw: dict[str, Any]) -> dict[str, Any]:
 def finalize_entry_effectiveness_factor(raw: dict[str, Any]) -> dict[str, Any]:
     weighted_count = raw["weighted_count"]
     raw_count = int(raw["raw_count"])
+    touched_weight = raw.get("touched_weight", 0.0)
+    untouched_weight = raw.get("untouched_weight", 0.0)
     avg_entry_return = raw["entry_return_sum"] / weighted_count if weighted_count else 0.0
-    avg_adverse_drawdown = raw["adverse_drawdown_sum"] / weighted_count if weighted_count else 0.0
-    hit_rate = raw["hit_weight"] / weighted_count * 100 if weighted_count else 0.0
-    crash_rate = raw["crash_weight"] / weighted_count * 100 if weighted_count else 0.0
+    avg_touch_return = raw.get("touch_return_sum", 0.0) / touched_weight if touched_weight else 0.0
+    avg_missed_return = raw.get("missed_return_sum", 0.0) / untouched_weight if untouched_weight else 0.0
+    avg_adverse_drawdown = raw.get("touch_adverse_drawdown_sum", 0.0) / touched_weight if touched_weight else 0.0
+    hit_rate = raw["hit_weight"] / touched_weight * 100 if touched_weight else 0.0
+    crash_rate = raw["crash_weight"] / touched_weight * 100 if touched_weight else 0.0
+    touch_rate = touched_weight / weighted_count * 100 if weighted_count else 0.0
+    untouched_rate = untouched_weight / weighted_count * 100 if weighted_count else 0.0
     sample_shrink = raw_count / (raw_count + ENTRY_FEEDBACK_MIN_SAMPLES)
     confidence = clamp(sample_shrink * min(1.0, weighted_count / ENTRY_FEEDBACK_MIN_SAMPLES), 0.0, 1.0)
 
     downside_penalty = 0.0
-    if avg_entry_return < 0:
-        downside_penalty += abs(avg_entry_return) / 4.0
-    if avg_adverse_drawdown < -3:
-        downside_penalty += (abs(avg_adverse_drawdown) - 3) / 5.0
-    downside_penalty += max(0.0, crash_rate - 15) / 35.0
+    if touched_weight:
+        if avg_touch_return < 0:
+            downside_penalty += abs(avg_touch_return) / 4.0
+        if avg_adverse_drawdown < -3:
+            downside_penalty += (abs(avg_adverse_drawdown) - 3) / 5.0
+        downside_penalty += max(0.0, crash_rate - 15) / 35.0
 
-    upside_credit = max(0.0, avg_entry_return) / 8.0
+    upside_credit = max(0.0, avg_touch_return) / 8.0 if touched_weight else 0.0
     upside_credit += max(0.0, hit_rate - 55) / 80.0
+    if untouched_weight and avg_missed_return > 3:
+        upside_credit += min(0.6, (avg_missed_return - 3) / 12.0) * (untouched_weight / weighted_count if weighted_count else 0)
     price_adjustment = clamp(
         (upside_credit - downside_penalty) * sample_shrink,
         ENTRY_FEEDBACK_PRICE_CAP_DOWN,
         ENTRY_FEEDBACK_PRICE_CAP_UP,
     )
 
-    if crash_rate >= 35 or avg_adverse_drawdown <= -8 or avg_entry_return <= -5:
+    if touched_weight and (crash_rate >= 35 or avg_adverse_drawdown <= -8 or avg_touch_return <= -5):
         risk_level = "高"
-    elif crash_rate >= 20 or avg_adverse_drawdown <= -5 or avg_entry_return < 0:
+    elif touched_weight and (crash_rate >= 20 or avg_adverse_drawdown <= -5 or avg_touch_return < 0):
         risk_level = "中"
     else:
         risk_level = "低"
@@ -1375,9 +1455,16 @@ def finalize_entry_effectiveness_factor(raw: dict[str, Any]) -> dict[str, Any]:
         "sample_count": raw_count,
         "weighted_sample_count": round_or_none(weighted_count),
         "avg_entry_return_pct": round_or_none(avg_entry_return),
+        "avg_touch_return_pct": round_or_none(avg_touch_return),
+        "avg_missed_return_pct": round_or_none(avg_missed_return),
         "avg_adverse_drawdown_pct": round_or_none(avg_adverse_drawdown),
         "hit_rate_pct": round_or_none(hit_rate),
         "crash_rate_pct": round_or_none(crash_rate),
+        "touch_rate_pct": round_or_none(touch_rate),
+        "untouched_wait_rate_pct": round_or_none(untouched_rate),
+        "actual_buyable_count": int(raw.get("actual_buyable_count", 0)),
+        "touched_entry_count": int(raw.get("touched_entry_count", 0)),
+        "untouched_wait_count": int(raw.get("untouched_wait_count", 0)),
         "confidence": round_or_none(confidence, 3),
         "price_adjustment_pct": round_or_none(price_adjustment, 3),
         "risk_level": risk_level,
@@ -1391,6 +1478,9 @@ def build_model_feedback(current_rows: list[dict[str, Any]], as_of_date: str) ->
     entry_aggregates: dict[str, dict[str, Any]] = {}
     observations = 0
     entry_observations = 0
+    entry_touched_observations = 0
+    entry_untouched_observations = 0
+    daily_cache: dict[str, pd.DataFrame] = {}
 
     for index, snapshot in enumerate(snapshots):
         start_stocks = snapshot.get("stocks", [])
@@ -1441,16 +1531,33 @@ def build_model_feedback(current_rows: list[dict[str, Any]], as_of_date: str) ->
                     bucket["hit_weight"] += weight if excess_return > 0 else 0.0
                     bucket["horizons"].add(horizon)
 
-                entry_price = entry_reference_price(stock)
                 future_close = safe_float(future_stock.get("close"))
-                if entry_price and future_close is not None:
-                    future_closes = future_closes_for_code(snapshots, index, horizon, code)
-                    if future_closes:
-                        entry_return = (future_close / entry_price - 1) * 100
-                        min_future_close = min(future_closes)
-                        adverse_drawdown = (min_future_close / entry_price - 1) * 100
+                if future_close is not None:
+                    future_lows = future_lows_for_code(snapshots, index, horizon, code, daily_cache)
+                    entry_meta = entry_reference_meta(stock, future_lows)
+                    if entry_meta and future_lows:
+                        entry_price = safe_float(entry_meta.get("price"))
+                        sample_weight = weight * (safe_float(entry_meta.get("weight")) or 1.0)
+                        sample_type = str(entry_meta.get("sample_type") or "unknown")
+                        entry_return = (future_close / entry_price - 1) * 100 if entry_price else None
+                        min_future_low = min(future_lows)
+                        adverse_drawdown = (min_future_low / entry_price - 1) * 100 if entry_price else None
+                        if entry_return is None or adverse_drawdown is None:
+                            continue
+                        touched = bool(entry_meta.get("touched"))
                         entry_observations += 1
-                        for factor in entry_effectiveness_factors(stock):
+                        if touched:
+                            entry_touched_observations += 1
+                        else:
+                            entry_untouched_observations += 1
+
+                        sample_type_factor = {
+                            "id": feedback_factor_id("entry_sample_type", entry_meta.get("sample_type_label")),
+                            "dimension": "entry_sample_type",
+                            "value": str(entry_meta.get("sample_type_label") or sample_type),
+                            "label": feedback_factor_label("entry_sample_type", entry_meta.get("sample_type_label")),
+                        }
+                        for factor in [*entry_effectiveness_factors(stock), sample_type_factor]:
                             entry_bucket = entry_aggregates.setdefault(
                                 factor["id"],
                                 {
@@ -1461,20 +1568,40 @@ def build_model_feedback(current_rows: list[dict[str, Any]], as_of_date: str) ->
                                     "raw_count": 0,
                                     "weighted_count": 0.0,
                                     "entry_return_sum": 0.0,
-                                    "adverse_drawdown_sum": 0.0,
+                                    "touch_return_sum": 0.0,
+                                    "missed_return_sum": 0.0,
+                                    "touch_adverse_drawdown_sum": 0.0,
+                                    "touched_weight": 0.0,
+                                    "untouched_weight": 0.0,
                                     "hit_weight": 0.0,
                                     "crash_weight": 0.0,
+                                    "actual_buyable_count": 0,
+                                    "touched_entry_count": 0,
+                                    "untouched_wait_count": 0,
                                     "horizons": set(),
                                 },
                             )
                             entry_bucket["raw_count"] += 1
-                            entry_bucket["weighted_count"] += weight
-                            entry_bucket["entry_return_sum"] += entry_return * weight
-                            entry_bucket["adverse_drawdown_sum"] += adverse_drawdown * weight
-                            if entry_return > 0 and adverse_drawdown > ENTRY_ADVERSE_DRAW_THRESHOLD:
-                                entry_bucket["hit_weight"] += weight
-                            if entry_return <= ENTRY_CRASH_RETURN_THRESHOLD or adverse_drawdown <= ENTRY_ADVERSE_DRAW_THRESHOLD:
-                                entry_bucket["crash_weight"] += weight
+                            entry_bucket["weighted_count"] += sample_weight
+                            entry_bucket["entry_return_sum"] += entry_return * sample_weight
+                            if sample_type == "actual_buyable":
+                                entry_bucket["actual_buyable_count"] += 1
+                            elif sample_type == "touched_entry":
+                                entry_bucket["touched_entry_count"] += 1
+                            elif sample_type == "untouched_wait":
+                                entry_bucket["untouched_wait_count"] += 1
+
+                            if touched:
+                                entry_bucket["touched_weight"] += sample_weight
+                                entry_bucket["touch_return_sum"] += entry_return * sample_weight
+                                entry_bucket["touch_adverse_drawdown_sum"] += adverse_drawdown * sample_weight
+                                if entry_return > 0 and adverse_drawdown > ENTRY_ADVERSE_DRAW_THRESHOLD:
+                                    entry_bucket["hit_weight"] += sample_weight
+                                if entry_return <= ENTRY_CRASH_RETURN_THRESHOLD or adverse_drawdown <= ENTRY_ADVERSE_DRAW_THRESHOLD:
+                                    entry_bucket["crash_weight"] += sample_weight
+                            else:
+                                entry_bucket["untouched_weight"] += sample_weight
+                                entry_bucket["missed_return_sum"] += entry_return * sample_weight
                             entry_bucket["horizons"].add(horizon)
 
     factor_stats = [finalize_feedback_factor(raw) for raw in aggregates.values()]
@@ -1514,8 +1641,10 @@ def build_model_feedback(current_rows: list[dict[str, Any]], as_of_date: str) ->
         },
         "entry_effectiveness": {
             "schema_version": "1.0",
-            "method": "按历史快照中可买入或贴近接入价的样本，统计按当时接入价计算的后续收益、最大不利回撤和暴跌率；结果只用于下压/放宽接入纪律，不构成买卖建议。",
+            "method": "按历史快照中所有存在推荐接入价的样本复盘，并区分当时可买、后续触达接入价、未触达等待价三类；触达样本用于评估买入后回撤和暴跌风险，未触达样本用于评估接入价是否过于保守。",
             "observation_count": entry_observations,
+            "touched_observation_count": entry_touched_observations,
+            "untouched_wait_observation_count": entry_untouched_observations,
             "min_strong_samples": ENTRY_FEEDBACK_MIN_SAMPLES,
             "crash_return_threshold_pct": ENTRY_CRASH_RETURN_THRESHOLD,
             "adverse_drawdown_threshold_pct": ENTRY_ADVERSE_DRAW_THRESHOLD,
@@ -1527,7 +1656,7 @@ def build_model_feedback(current_rows: list[dict[str, Any]], as_of_date: str) ->
                 "negative_factor_count": len(entry_negative),
                 "top_positive": entry_positive[:5],
                 "top_negative": entry_negative[:5],
-                "note": "价格安全反馈优先惩罚接入后负收益、最大不利回撤和暴跌率；样本不足时强制收缩，宁可少给可买信号。",
+                "note": "价格安全反馈优先惩罚触达接入价后的负收益、最大不利回撤和暴跌率；未触达等待样本只小幅校正接入价过保守问题，不直接放大可买信号。",
             },
             "factor_stats": entry_factor_stats,
         },
@@ -1633,8 +1762,15 @@ def entry_safety_effect_for_row(row: dict[str, Any], feedback_payload: dict[str,
                 "dimension": factor["dimension"],
                 "sample_count": stat.get("sample_count"),
                 "avg_entry_return_pct": stat.get("avg_entry_return_pct"),
+                "avg_touch_return_pct": stat.get("avg_touch_return_pct"),
+                "avg_missed_return_pct": stat.get("avg_missed_return_pct"),
                 "avg_adverse_drawdown_pct": stat.get("avg_adverse_drawdown_pct"),
                 "crash_rate_pct": stat.get("crash_rate_pct"),
+                "touch_rate_pct": stat.get("touch_rate_pct"),
+                "untouched_wait_rate_pct": stat.get("untouched_wait_rate_pct"),
+                "actual_buyable_count": stat.get("actual_buyable_count"),
+                "touched_entry_count": stat.get("touched_entry_count"),
+                "untouched_wait_count": stat.get("untouched_wait_count"),
                 "confidence": stat.get("confidence"),
                 "risk_level": risk_level,
                 "price_adjustment_pct": round_or_none(contribution, 3),
@@ -1664,7 +1800,9 @@ def entry_safety_effect_for_row(row: dict[str, Any], feedback_payload: dict[str,
     note = "；".join(
         (
             f"{item['label']}({item['price_adjustment_pct']:+.2f}%, "
-            f"接入后均值{format_optional_pct(item.get('avg_entry_return_pct'))}, "
+            f"触达后{format_optional_pct(item.get('avg_touch_return_pct'))}, "
+            f"未触达错过{format_optional_pct(item.get('avg_missed_return_pct'))}, "
+            f"触达率{format_optional_pct(item.get('touch_rate_pct'))}, "
             f"回撤{format_optional_pct(item.get('avg_adverse_drawdown_pct'))}, "
             f"暴跌率{format_optional_pct(item.get('crash_rate_pct'))}, "
             f"样本{item.get('sample_count')})"
