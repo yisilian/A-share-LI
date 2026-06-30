@@ -166,7 +166,7 @@ const formatEntrySafety = (stock) => {
 
 function createDefaultSimulation() {
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
     initialCash: INITIAL_SIM_CASH,
     cash: INITIAL_SIM_CASH,
     positions: {},
@@ -178,6 +178,7 @@ function createDefaultSimulation() {
     autoLog: [],
     pendingBuyOrders: [],
     sellPlans: {},
+    decisionJournal: [],
   };
 }
 
@@ -242,8 +243,9 @@ function sanitizeSimulation(raw) {
   const autoLog = Array.isArray(raw.autoLog) ? raw.autoLog.slice(0, 50) : [];
   const pendingBuyOrders = normalizePendingBuyOrders(raw.pendingBuyOrders);
   const sellPlans = normalizeSellPlans(raw.sellPlans);
+  const decisionJournal = normalizeDecisionJournal(raw.decisionJournal);
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
     initialCash,
     cash,
     positions,
@@ -255,6 +257,7 @@ function sanitizeSimulation(raw) {
     autoLog,
     pendingBuyOrders,
     sellPlans,
+    decisionJournal,
   };
 }
 
@@ -325,6 +328,40 @@ function normalizeSellPlans(raw = {}) {
     };
   });
   return plans;
+}
+
+function normalizeDecisionJournal(raw = []) {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((record) => {
+      if (!record || typeof record !== "object") return null;
+      return {
+        id: record.id || `${record.code || "record"}-${record.at || ""}`,
+        at: record.at || "",
+        tradeDate: record.tradeDate || "",
+        phase: record.phase || "",
+        phaseKey: record.phaseKey || "",
+        type: record.type || "info",
+        status: record.status || "",
+        code: String(record.code || ""),
+        name: record.name || record.code || "",
+        summary: record.summary || "",
+        reason: record.reason || "",
+        plannedEntryPrice: isFiniteNumber(record.plannedEntryPrice) ? Number(record.plannedEntryPrice) : null,
+        maxBuyPrice: isFiniteNumber(record.maxBuyPrice) ? Number(record.maxBuyPrice) : null,
+        noChasePrice: isFiniteNumber(record.noChasePrice) ? Number(record.noChasePrice) : null,
+        snapshotPrice: isFiniteNumber(record.snapshotPrice) ? Number(record.snapshotPrice) : null,
+        executionPrice: isFiniteNumber(record.executionPrice) ? Number(record.executionPrice) : null,
+        stopLossPrice: isFiniteNumber(record.stopLossPrice) ? Number(record.stopLossPrice) : null,
+        takeProfitPrice: isFiniteNumber(record.takeProfitPrice) ? Number(record.takeProfitPrice) : null,
+        quantity: isFiniteNumber(record.quantity) ? Number(record.quantity) : null,
+        feeTotal: isFiniteNumber(record.feeTotal) ? Number(record.feeTotal) : null,
+        realizedPnl: isFiniteNumber(record.realizedPnl) ? Number(record.realizedPnl) : null,
+        score: isFiniteNumber(record.score) ? Number(record.score) : null,
+      };
+    })
+    .filter((record) => record && (record.code || record.summary))
+    .slice(0, 100);
 }
 
 function normalizeFeeSettings(raw = {}) {
@@ -789,7 +826,20 @@ function expirePendingBuyOrders(events) {
   state.simulation.pendingBuyOrders = (state.simulation.pendingBuyOrders || []).map((order) => {
     if (order.status === "pending") {
       expired += 1;
-      return { ...order, status: "expired", cancelReason: "20点生成新计划，旧待买计划过期" };
+      const expiredOrder = { ...order, status: "expired", cancelReason: "20点生成新计划，旧待买计划过期" };
+      pushDecisionRecord({
+        type: "buy_plan_expired",
+        status: "expired",
+        code: expiredOrder.code,
+        name: expiredOrder.name,
+        summary: `${expiredOrder.name}待买计划过期`,
+        reason: expiredOrder.cancelReason,
+        plannedEntryPrice: expiredOrder.plannedEntryPrice,
+        maxBuyPrice: expiredOrder.maxBuyPrice,
+        noChasePrice: expiredOrder.noChasePrice,
+        score: expiredOrder.score,
+      });
+      return expiredOrder;
     }
     return order;
   });
@@ -821,6 +871,20 @@ function createEveningBuyPlans(runKey, events) {
   events.push({
     type: "buy_plan",
     summary: orders.length ? `生成次日10点待买计划${orders.length}只：${orders.map((order) => order.name).join("、")}` : "没有符合条件的次日待买计划",
+  });
+  orders.forEach((order) => {
+    pushDecisionRecord({
+      type: "buy_plan_created",
+      status: "pending",
+      code: order.code,
+      name: order.name,
+      summary: "20点生成次日10点待买计划",
+      reason: order.reason,
+      plannedEntryPrice: order.plannedEntryPrice,
+      maxBuyPrice: order.maxBuyPrice,
+      noChasePrice: order.noChasePrice,
+      score: order.score,
+    });
   });
 }
 
@@ -869,6 +933,18 @@ function executePendingBuyOrders(runKey, events) {
     if (!stock || !price) {
       markOrderCancelled(order, "缺少10点执行价格或股票不在最新池");
       events.push({ type: "buy_cancel", code: order.code, summary: `${order.name}取消买入：缺少10点执行价格` });
+      pushDecisionRecord({
+        type: "buy_cancelled",
+        status: "cancelled",
+        code: order.code,
+        name: order.name,
+        summary: `${order.name}取消买入`,
+        reason: order.cancelReason,
+        plannedEntryPrice: order.plannedEntryPrice,
+        maxBuyPrice: order.maxBuyPrice,
+        noChasePrice: order.noChasePrice,
+        score: order.score,
+      });
       return;
     }
 
@@ -876,6 +952,19 @@ function executePendingBuyOrders(runKey, events) {
     if (!riskDecision.shouldBuy) {
       markOrderCancelled(order, riskDecision.reason);
       events.push({ type: "buy_cancel", code: order.code, summary: `${order.name}取消买入：${riskDecision.reason}` });
+      pushDecisionRecord({
+        type: "buy_cancelled",
+        status: "cancelled",
+        code: order.code,
+        name: order.name,
+        summary: `${order.name}取消买入`,
+        reason: riskDecision.reason,
+        plannedEntryPrice: order.plannedEntryPrice,
+        maxBuyPrice: order.maxBuyPrice,
+        noChasePrice: order.noChasePrice,
+        snapshotPrice: price,
+        score: order.score,
+      });
       return;
     }
 
@@ -883,6 +972,20 @@ function executePendingBuyOrders(runKey, events) {
     if (!quantity) {
       markOrderCancelled(order, "可用现金不足或不足一手");
       events.push({ type: "buy_cancel", code: order.code, summary: `${order.name}取消买入：可用现金不足` });
+      pushDecisionRecord({
+        type: "buy_cancelled",
+        status: "cancelled",
+        code: order.code,
+        name: order.name,
+        summary: `${order.name}取消买入`,
+        reason: order.cancelReason,
+        plannedEntryPrice: order.plannedEntryPrice,
+        maxBuyPrice: order.maxBuyPrice,
+        noChasePrice: order.noChasePrice,
+        snapshotPrice: price,
+        executionPrice: riskDecision.price,
+        score: order.score,
+      });
       return;
     }
 
@@ -890,6 +993,21 @@ function executePendingBuyOrders(runKey, events) {
     if (!result.ok) {
       markOrderCancelled(order, result.message);
       events.push({ type: "buy_cancel", code: order.code, summary: `${order.name}取消买入：${result.message}` });
+      pushDecisionRecord({
+        type: "buy_cancelled",
+        status: "cancelled",
+        code: order.code,
+        name: order.name,
+        summary: `${order.name}取消买入`,
+        reason: result.message,
+        plannedEntryPrice: order.plannedEntryPrice,
+        maxBuyPrice: order.maxBuyPrice,
+        noChasePrice: order.noChasePrice,
+        snapshotPrice: price,
+        executionPrice: riskDecision.price,
+        quantity,
+        score: order.score,
+      });
       return;
     }
 
@@ -902,6 +1020,24 @@ function executePendingBuyOrders(runKey, events) {
       code: stock.code,
       name: stock.name,
       summary: `10点买入${stock.name}${result.quantity}股/成交${formatNumber(riskDecision.price)}/费用${formatCurrency(result.fees.total)}`,
+    });
+    pushDecisionRecord({
+      type: "buy_executed",
+      status: "executed",
+      code: stock.code,
+      name: stock.name,
+      summary: `10点买入${stock.name}${result.quantity}股`,
+      reason: riskDecision.reason,
+      plannedEntryPrice: order.plannedEntryPrice,
+      maxBuyPrice: order.maxBuyPrice,
+      noChasePrice: order.noChasePrice,
+      snapshotPrice: price,
+      executionPrice: riskDecision.price,
+      stopLossPrice: result.stopLossPrice,
+      takeProfitPrice: result.takeProfitPrice,
+      quantity: result.quantity,
+      feeTotal: result.fees.total,
+      score: order.score,
     });
   });
 }
@@ -945,6 +1081,18 @@ function runMorningRiskReview(events) {
       plan.lastDecision = "10点预警，等待14:30确认";
       state.simulation.sellPlans[position.code] = plan;
       events.push({ type: "sell_warning", code: position.code, summary: `${position.name}10点预警：${decision.reason}，等待14:30确认` });
+      pushDecisionRecord({
+        type: "sell_warning",
+        status: "warning",
+        code: position.code,
+        name: position.name,
+        summary: `${position.name}10点卖出预警`,
+        reason: decision.reason,
+        snapshotPrice: price,
+        stopLossPrice: plan.hardStopPrice,
+        takeProfitPrice: plan.takeProfitPrice,
+        quantity: position.quantity,
+      });
     }
   });
 }
@@ -957,6 +1105,15 @@ function executeAfternoonSellPlans(events) {
     const price = latestPriceFor(position.code);
     if (!price) {
       events.push({ type: "sell_skip", code: position.code, summary: `${position.name}缺少14:30执行价格，暂不卖出` });
+      pushDecisionRecord({
+        type: "sell_skipped",
+        status: "skipped",
+        code: position.code,
+        name: position.name,
+        summary: `${position.name}暂不卖出`,
+        reason: "缺少14:30执行价格",
+        quantity: position.quantity,
+      });
       return;
     }
     const decision = autoSellDecision(stock, position, price, "afternoon_risk");
@@ -978,6 +1135,18 @@ function executeSellDecision(stock, position, snapshotPrice, decision, events, p
   const available = availableSellQuantity(position);
   if (!available) {
     events.push({ type: "hold", code: position.code, name: position.name, summary: `${position.name}触发${decision.reason}，但 T+1 暂不可卖` });
+    pushDecisionRecord({
+      type: "sell_blocked",
+      status: "blocked",
+      code: position.code,
+      name: position.name,
+      summary: `${position.name}触发卖出但 T+1 暂不可卖`,
+      reason: decision.reason,
+      snapshotPrice,
+      stopLossPrice: state.simulation.sellPlans?.[position.code]?.hardStopPrice,
+      takeProfitPrice: state.simulation.sellPlans?.[position.code]?.takeProfitPrice,
+      quantity: position.quantity,
+    });
     return;
   }
   const sellPrice = snapshotPrice * (1 - autoSettings().sellSlippagePct);
@@ -994,6 +1163,21 @@ function executeSellDecision(stock, position, snapshotPrice, decision, events, p
       code: stock.code,
       name: stock.name,
       summary: `${prefix}卖出${stock.name}${result.quantity}股/${decision.reason}/成交${formatNumber(sellPrice)}/费用${formatCurrency(result.fees.total)}`,
+    });
+    pushDecisionRecord({
+      type: "sell_executed",
+      status: "executed",
+      code: stock.code,
+      name: stock.name,
+      summary: `${prefix}卖出${stock.name}${result.quantity}股`,
+      reason: decision.reason,
+      snapshotPrice,
+      executionPrice: sellPrice,
+      stopLossPrice: state.simulation.sellPlans?.[position.code]?.hardStopPrice,
+      takeProfitPrice: state.simulation.sellPlans?.[position.code]?.takeProfitPrice,
+      quantity: result.quantity,
+      feeTotal: result.fees.total,
+      realizedPnl: result.realizedPnl,
     });
   }
 }
@@ -1066,6 +1250,20 @@ function positionHoldDays(position) {
   const end = new Date(`${currentTradeDate()}T00:00:00`);
   if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return 0;
   return Math.max(0, Math.floor((end - start) / 86400000));
+}
+
+function pushDecisionRecord(record) {
+  const phase = currentPhaseKey();
+  state.simulation.decisionJournal = normalizeDecisionJournal(state.simulation.decisionJournal);
+  state.simulation.decisionJournal.unshift({
+    id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    at: new Date().toISOString(),
+    tradeDate: currentTradeDate(),
+    phase: state.data?.universe_scan?.update_phase_label || phaseLabel(phase),
+    phaseKey: phase,
+    ...record,
+  });
+  state.simulation.decisionJournal = state.simulation.decisionJournal.slice(0, 100);
 }
 
 function pushAutoLog(runKey, phase, events) {
@@ -1330,6 +1528,7 @@ function renderSimulationPanel() {
   renderSimulationPositions(snapshot.positions);
   renderSimulationTrades();
   renderSimulationPlans();
+  renderDecisionJournal();
   renderAutoLog();
 }
 
@@ -1487,6 +1686,86 @@ function renderSimulationPlans() {
     `
   );
   container.innerHTML = [...buyRows, ...sellRows].join("");
+}
+
+function decisionMeta(record) {
+  const map = {
+    buy_plan_created: { label: "生成待买", className: "buy-wait" },
+    buy_plan_expired: { label: "计划过期", className: "buy-wait" },
+    buy_executed: { label: "执行买入", className: "buy-now" },
+    buy_cancelled: { label: "取消买入", className: "buy-avoid" },
+    sell_warning: { label: "卖出预警", className: "buy-wait" },
+    sell_blocked: { label: "卖出受限", className: "buy-wait" },
+    sell_skipped: { label: "卖出跳过", className: "buy-wait" },
+    sell_executed: { label: "执行卖出", className: "buy-avoid" },
+  };
+  return map[record.type] || { label: "策略记录", className: "buy-wait" };
+}
+
+function labeledNumber(label, value, formatter = formatNumber) {
+  const formatted = formatter(value);
+  return formatted === "-" ? "" : `${label}${formatted}`;
+}
+
+function decisionPriceText(record) {
+  const buyParts = [
+    labeledNumber("计划", record.plannedEntryPrice),
+    labeledNumber("上限", record.maxBuyPrice),
+    labeledNumber("不追高", record.noChasePrice),
+    labeledNumber("快照", record.snapshotPrice),
+    labeledNumber("执行", record.executionPrice),
+  ].filter(Boolean);
+  const sellParts = [
+    labeledNumber("止损", record.stopLossPrice),
+    labeledNumber("止盈", record.takeProfitPrice),
+    labeledNumber("快照", record.snapshotPrice),
+    labeledNumber("执行", record.executionPrice),
+  ].filter(Boolean);
+  return record.type?.startsWith("sell") ? sellParts.join(" / ") : buyParts.join(" / ");
+}
+
+function decisionResultText(record) {
+  const parts = [record.summary].filter(Boolean);
+  if (isFiniteNumber(record.quantity)) parts.push(`${record.quantity}股`);
+  if (isFiniteNumber(record.feeTotal)) parts.push(`费用${formatCurrency(record.feeTotal)}`);
+  if (isFiniteNumber(record.realizedPnl)) parts.push(`实现${formatCurrency(record.realizedPnl)}`);
+  if (isFiniteNumber(record.score)) parts.push(`评分${formatNumber(record.score, 1)}`);
+  return parts.join(" · ") || "-";
+}
+
+function renderDecisionJournal() {
+  const container = byId("simulationDecisionJournal");
+  if (!container) return;
+  const allRecords = normalizeDecisionJournal(state.simulation.decisionJournal);
+  state.simulation.decisionJournal = allRecords;
+  const records = allRecords.slice(0, 20);
+  if (!records.length) {
+    container.innerHTML = '<p class="empty-text">暂无决策复盘。20点生成计划、10点买入验证、14:30卖出执行后会在这里留下原因和价格纪律。</p>';
+    return;
+  }
+  container.innerHTML = records
+    .map((record) => {
+      const meta = decisionMeta(record);
+      const priceText = decisionPriceText(record) || "-";
+      return `
+        <article class="simulation-row compact">
+          <div>
+            <strong class="${meta.className}">${meta.label} ${escapeHtml(record.name || record.code || "")}</strong>
+            <em>${escapeHtml(record.tradeDate || "-")} · ${escapeHtml(record.code || "-")} · ${escapeHtml(record.phase || "")}</em>
+          </div>
+          <div>
+            <span>价格纪律</span>
+            <strong>${escapeHtml(priceText)}</strong>
+          </div>
+          <div>
+            <span>原因 / 结果</span>
+            <strong>${escapeHtml(decisionResultText(record))}</strong>
+            <em>${escapeHtml(record.reason || "")}</em>
+          </div>
+        </article>
+      `;
+    })
+    .join("");
 }
 
 function renderAutoLog() {
