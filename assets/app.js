@@ -9,6 +9,11 @@ const DEFAULT_AUTO_SETTINGS = {
   maxStocks: 5,
   minScore: 7.5,
   maxBuysPerRun: 2,
+  afternoonMaxBuysPerRun: 1,
+  afternoonMaxPositionPct: 0.1,
+  afternoonMinScoreBuffer: 0.3,
+  afternoonMinRiskAppetite: 0.45,
+  afternoonMinFundFlowScore: 0,
   stopLossPct: 0.06,
   takeProfitPct: 0.12,
   trailingStopPct: 0.06,
@@ -298,6 +303,14 @@ function normalizeAutoSettings(raw = {}) {
     maxStocks: Math.max(1, Math.min(10, Math.floor(Number(raw.maxStocks ?? DEFAULT_AUTO_SETTINGS.maxStocks)) || DEFAULT_AUTO_SETTINGS.maxStocks)),
     minScore: Math.max(0, Math.min(10, Number(raw.minScore ?? DEFAULT_AUTO_SETTINGS.minScore))),
     maxBuysPerRun: Math.max(1, Math.min(5, Math.floor(Number(raw.maxBuysPerRun ?? DEFAULT_AUTO_SETTINGS.maxBuysPerRun)) || DEFAULT_AUTO_SETTINGS.maxBuysPerRun)),
+    afternoonMaxBuysPerRun: Math.max(
+      1,
+      Math.min(3, Math.floor(Number(raw.afternoonMaxBuysPerRun ?? DEFAULT_AUTO_SETTINGS.afternoonMaxBuysPerRun)) || DEFAULT_AUTO_SETTINGS.afternoonMaxBuysPerRun)
+    ),
+    afternoonMaxPositionPct: clampPercent(raw.afternoonMaxPositionPct, DEFAULT_AUTO_SETTINGS.afternoonMaxPositionPct, 0.01, 0.3),
+    afternoonMinScoreBuffer: Math.max(0, Math.min(2, Number(raw.afternoonMinScoreBuffer ?? DEFAULT_AUTO_SETTINGS.afternoonMinScoreBuffer))),
+    afternoonMinRiskAppetite: Math.max(0, Math.min(1, Number(raw.afternoonMinRiskAppetite ?? DEFAULT_AUTO_SETTINGS.afternoonMinRiskAppetite))),
+    afternoonMinFundFlowScore: Math.max(-10, Math.min(10, Number(raw.afternoonMinFundFlowScore ?? DEFAULT_AUTO_SETTINGS.afternoonMinFundFlowScore))),
     stopLossPct: clampPercent(raw.stopLossPct, DEFAULT_AUTO_SETTINGS.stopLossPct, 0.01, 0.3),
     takeProfitPct: clampPercent(raw.takeProfitPct, DEFAULT_AUTO_SETTINGS.takeProfitPct, 0.01, 0.8),
     trailingStopPct: clampPercent(raw.trailingStopPct, DEFAULT_AUTO_SETTINGS.trailingStopPct, 0.01, 0.3),
@@ -764,6 +777,10 @@ function currentBuyCheckLabel() {
   return state.data?.universe_scan?.update_phase_label || "买入复检";
 }
 
+function buyCheckLabelForOptions(options = {}) {
+  return isAfternoonFinalMode(options) ? "14:30尾盘严格买入复检" : currentBuyCheckLabel();
+}
+
 function runAutoStrategy({ force = false, quiet = false } = {}) {
   if (!state.data) return { ran: false, events: [] };
   const settings = autoSettings();
@@ -791,11 +808,12 @@ function runAutoStrategy({ force = false, quiet = false } = {}) {
     runMorningRiskReview(events);
     executePendingBuyOrders(runKey, events);
   } else if (phase === "afternoon_risk") {
+    executeAfternoonSellPlans(events);
+    executePendingBuyOrders(runKey, events, { mode: "afternoon_final" });
     expirePendingBuyOrders(events, {
       reason: "14:30买入窗口结束，未触发的待买计划过期",
       summaryPrefix: "买入窗口结束，未触发待买计划过期",
     });
-    executeAfternoonSellPlans(events);
   } else {
     events.push({ type: "idle", summary: `${phaseLabel(phase)}：仅更新持仓高点，不执行买卖` });
   }
@@ -936,6 +954,31 @@ function isActionableBuySignal(stock) {
   return Boolean(stock?.is_buyable_now || stock?.buy_signal_key === "pullback_buy" || stock?.buy_signal_key === "breakout_buy");
 }
 
+function isAfternoonFinalMode(options = {}) {
+  return options.mode === "afternoon_final";
+}
+
+function afternoonBuyBlockReason(stock) {
+  const settings = autoSettings();
+  const market = state.data?.universe_scan?.market_environment || {};
+  const score = Number(stock?.score || 0);
+  const minScore = settings.minScore + settings.afternoonMinScoreBuffer;
+  const riskAppetite = Number(market.risk_appetite);
+  const fundFlowScore = Number(stock?.fund_flow_score);
+
+  if (!isActionableBuySignal(stock)) return "尾盘只接受明确可买信号";
+  if (score < minScore) return `尾盘评分需达到${formatNumber(minScore, 1)}以上`;
+  if (stock.market_context_block_buy || stock.entry_safety_block_buy) return "尾盘市场/接入风控拦截";
+  if (stock.buy_signal_key === "risk_wait" || stock.buy_signal_key === "avoid" || stock.status_key === "avoid") return "尾盘风险状态不买入";
+  if (Number.isFinite(riskAppetite) && riskAppetite < settings.afternoonMinRiskAppetite) {
+    return `尾盘市场风险偏好${formatNumber(riskAppetite, 2)}低于阈值${formatNumber(settings.afternoonMinRiskAppetite, 2)}`;
+  }
+  if (Number.isFinite(fundFlowScore) && fundFlowScore < settings.afternoonMinFundFlowScore) {
+    return `尾盘资金流分${formatNumber(fundFlowScore, 2)}低于阈值${formatNumber(settings.afternoonMinFundFlowScore, 2)}`;
+  }
+  return "";
+}
+
 function buildPendingBuyOrder(stock, runKey, options = {}) {
   const actionable = options.actionable ?? isActionableBuySignal(stock);
   const plannedEntryPrice = actionable
@@ -975,13 +1018,16 @@ function buildPendingBuyOrder(stock, runKey, options = {}) {
   };
 }
 
-function executePendingBuyOrders(runKey, events) {
-  const buyCheckLabel = currentBuyCheckLabel();
+function executePendingBuyOrders(runKey, events, options = {}) {
+  const buyCheckLabel = buyCheckLabelForOptions(options);
+  const settings = autoSettings();
+  const maxExecutions = isAfternoonFinalMode(options) ? settings.afternoonMaxBuysPerRun : Infinity;
+  let executedCount = 0;
   let pendingOrders = (state.simulation.pendingBuyOrders || []).filter(
     (order) => order.status === "pending" && order.plannedExecutionPhase === "morning_entry" && order.createdRunKey !== runKey
   );
   if (!pendingOrders.length) {
-    pendingOrders = createMorningFallbackBuyOrders(runKey, events);
+    pendingOrders = createMorningFallbackBuyOrders(runKey, events, options);
     if (!pendingOrders.length) {
       events.push({ type: "buy_skip", summary: `${buyCheckLabel}无待买计划，且当前快照无明确可买信号，跳过买入` });
       return;
@@ -1009,7 +1055,7 @@ function executePendingBuyOrders(runKey, events) {
       return;
     }
 
-    const riskDecision = autoBuyDecisionFromPlan(stock, order, price);
+    const riskDecision = autoBuyDecisionFromPlan(stock, order, price, options);
     if (!riskDecision.shouldBuy) {
       if (riskDecision.action === "wait") {
         events.push({ type: "buy_wait", code: order.code, summary: `${order.name}继续等待：${riskDecision.reason}` });
@@ -1046,7 +1092,27 @@ function executePendingBuyOrders(runKey, events) {
       return;
     }
 
-    const quantity = autoBuyQuantity(riskDecision.price);
+    if (executedCount >= maxExecutions) {
+      events.push({ type: "buy_wait", code: order.code, summary: `${order.name}继续等待：${buyCheckLabel}已达到本次买入数量上限` });
+      pushDecisionRecord({
+        type: "buy_deferred",
+        status: "pending",
+        code: order.code,
+        name: order.name,
+        summary: `${order.name}等待下一次买入复检`,
+        reason: `${buyCheckLabel}已达到本次买入数量上限`,
+        plannedEntryPrice: order.plannedEntryPrice,
+        maxBuyPrice: order.maxBuyPrice,
+        noChasePrice: order.noChasePrice,
+        snapshotPrice: price,
+        score: order.score,
+      });
+      return;
+    }
+
+    const quantity = autoBuyQuantity(riskDecision.price, {
+      positionPct: isAfternoonFinalMode(options) ? settings.afternoonMaxPositionPct : settings.maxPositionPct,
+    });
     if (!quantity) {
       markOrderCancelled(order, "可用现金不足或不足一手");
       events.push({ type: "buy_cancel", code: order.code, summary: `${order.name}取消买入：可用现金不足` });
@@ -1092,6 +1158,7 @@ function executePendingBuyOrders(runKey, events) {
     order.status = "executed";
     order.executedAt = runKey;
     order.executionPrice = riskDecision.price;
+    executedCount += 1;
     state.simulation.sellPlans[stock.code] = buildSellPlan(state.simulation.positions[stock.code], stock, runKey);
     events.push({
       type: "buy",
@@ -1120,24 +1187,25 @@ function executePendingBuyOrders(runKey, events) {
   });
 }
 
-function createMorningFallbackBuyOrders(runKey, events) {
-  const buyCheckLabel = currentBuyCheckLabel();
+function createMorningFallbackBuyOrders(runKey, events, options = {}) {
+  const buyCheckLabel = buyCheckLabelForOptions(options);
   const settings = autoSettings();
   const slots = Math.max(0, settings.maxStocks - Object.keys(state.simulation.positions || {}).length);
-  const limit = Math.min(settings.maxBuysPerRun, slots);
+  const limit = Math.min(isAfternoonFinalMode(options) ? settings.afternoonMaxBuysPerRun : settings.maxBuysPerRun, slots);
   if (!limit) return [];
   const orders = [...stocks()]
     .filter((stock) => !state.simulation.positions[stock.code])
     .filter((stock) => Number(stock.score || 0) >= settings.minScore)
     .filter((stock) => isActionableBuySignal(stock))
     .filter((stock) => !stock.entry_safety_block_buy && stock.buy_signal_key !== "risk_wait" && stock.buy_signal_key !== "avoid" && stock.status_key !== "avoid")
+    .filter((stock) => !isAfternoonFinalMode(options) || !afternoonBuyBlockReason(stock))
     .sort((a, b) => Number(b.score || 0) - Number(a.score || 0))
     .slice(0, limit)
     .map((stock) =>
       buildPendingBuyOrder(stock, `${runKey}|morning-fallback`, {
         actionable: true,
-        signalPhase: "morning_entry",
-        reasonPrefix: `${buyCheckLabel}即时计划`,
+        signalPhase: isAfternoonFinalMode(options) ? "afternoon_risk" : "morning_entry",
+        reasonPrefix: isAfternoonFinalMode(options) ? buyCheckLabel : `${buyCheckLabel}即时计划`,
       })
     );
   if (!orders.length) return [];
@@ -1164,9 +1232,13 @@ function createMorningFallbackBuyOrders(runKey, events) {
   return orders;
 }
 
-function autoBuyDecisionFromPlan(stock, order, snapshotPrice) {
+function autoBuyDecisionFromPlan(stock, order, snapshotPrice, options = {}) {
   const settings = autoSettings();
-  const buyCheckLabel = currentBuyCheckLabel();
+  const buyCheckLabel = buyCheckLabelForOptions(options);
+  if (isAfternoonFinalMode(options)) {
+    const blockReason = afternoonBuyBlockReason(stock);
+    if (blockReason) return { shouldBuy: false, action: "wait", reason: blockReason };
+  }
   if (stock.entry_safety_block_buy || stock.buy_signal_key === "risk_wait" || stock.buy_signal_key === "avoid" || stock.status_key === "avoid") {
     return { shouldBuy: false, action: "cancel", reason: `${buyCheckLabel}模型风控拦截` };
   }
@@ -1347,10 +1419,11 @@ function autoSellDecision(stock, position, price, phase = currentPhaseKey()) {
   return { action: "hold", fraction: 0, reason: "" };
 }
 
-function autoBuyQuantity(price) {
+function autoBuyQuantity(price, options = {}) {
   const snapshot = portfolioSnapshot();
   const settings = autoSettings();
-  const grossLimit = Math.min(state.simulation.cash, snapshot.totalAssets * settings.maxPositionPct);
+  const positionPct = isFiniteNumber(options.positionPct) ? Number(options.positionPct) : settings.maxPositionPct;
+  const grossLimit = Math.min(state.simulation.cash, snapshot.totalAssets * positionPct);
   let quantity = normalizeQuantity(grossLimit / price);
   while (quantity > 0) {
     const grossAmount = quantity * price;
@@ -1716,7 +1789,7 @@ function renderAutoStrategyControls() {
   )}，${state.lastRefreshStatus || "等待检查"}。页面关闭或被手机系统挂起后不会后台运行。`;
   byId("autoStrategyNote").textContent = `最近策略检查：${
     state.simulation.lastAutoRunKey ? state.simulation.lastAutoRunKey.split("|")[0] : "尚未执行"
-  }。模型按离散快照执行：20点生成次日计划，10:00/11:20/13:30分批验证买入，14:30执行卖出/风控，20点复盘续订计划。${refreshText}账面收益只扣已发生费用；清仓后收益会额外扣除预计卖出费用。`;
+  }。模型按离散快照执行：每个快照同时观察买入和卖出；10:00/11:20/13:30正常复检买入并预警卖出，14:30先执行卖出/风控，再用更高门槛、小仓位做最后买入复检，20点复盘续订计划。${refreshText}账面收益只扣已发生费用；清仓后收益会额外扣除预计卖出费用。`;
 }
 
 function renderSimulationPositions(positions) {
@@ -1813,7 +1886,7 @@ function renderSimulationPlans() {
         </div>
         <div>
           <span>执行窗口</span>
-          <strong>10:00/11:20/13:30买入复检</strong>
+          <strong>10:00/11:20/13:30复检，14:30尾盘严格复检</strong>
         </div>
       </article>
     `
@@ -1843,6 +1916,7 @@ function decisionMeta(record) {
   const map = {
     buy_plan_created: { label: "生成待买", className: "buy-wait" },
     buy_plan_expired: { label: "计划过期", className: "buy-wait" },
+    buy_deferred: { label: "继续等待", className: "buy-wait" },
     buy_executed: { label: "执行买入", className: "buy-now" },
     buy_cancelled: { label: "取消买入", className: "buy-avoid" },
     sell_warning: { label: "卖出预警", className: "buy-wait" },
