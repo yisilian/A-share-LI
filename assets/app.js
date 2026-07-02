@@ -740,7 +740,7 @@ function autoRunKeyForData(data) {
 function currentPhaseKey() {
   const phase = state.data?.universe_scan?.update_phase;
   const label = state.data?.universe_scan?.update_phase_label || "";
-  if (phase === "morning_entry" || label.includes("10点") || label.includes("早盘")) return "morning_entry";
+  if (phase === "morning_entry" || label.includes("10点") || label.includes("早盘") || label.includes("接入") || label.includes("买入复检")) return "morning_entry";
   if (phase === "afternoon_risk" || label.includes("14") || label.includes("尾盘") || label.includes("风控")) return "afternoon_risk";
   if (phase === "evening_watch" || label.includes("20点") || label.includes("次日")) return "evening_watch";
   const hour = Number(String(state.data?.generated_at || "").match(/T(\d{2}):/)?.[1]);
@@ -752,12 +752,16 @@ function currentPhaseKey() {
 
 function phaseLabel(phase = currentPhaseKey()) {
   const labels = {
-    morning_entry: "10点买入验证",
+    morning_entry: "买入复检窗口",
     afternoon_risk: "14:30卖出执行",
     evening_watch: "20点生成次日计划",
     unknown: "非交易执行时段",
   };
   return labels[phase] || labels.unknown;
+}
+
+function currentBuyCheckLabel() {
+  return state.data?.universe_scan?.update_phase_label || "买入复检";
 }
 
 function runAutoStrategy({ force = false, quiet = false } = {}) {
@@ -787,6 +791,10 @@ function runAutoStrategy({ force = false, quiet = false } = {}) {
     runMorningRiskReview(events);
     executePendingBuyOrders(runKey, events);
   } else if (phase === "afternoon_risk") {
+    expirePendingBuyOrders(events, {
+      reason: "14:30买入窗口结束，未触发的待买计划过期",
+      summaryPrefix: "买入窗口结束，未触发待买计划过期",
+    });
     executeAfternoonSellPlans(events);
   } else {
     events.push({ type: "idle", summary: `${phaseLabel(phase)}：仅更新持仓高点，不执行买卖` });
@@ -855,12 +863,14 @@ function buildSellPlan(position, stock, runKey, existing = {}) {
   };
 }
 
-function expirePendingBuyOrders(events) {
+function expirePendingBuyOrders(events, options = {}) {
+  const reason = options.reason || "20点生成新计划，旧待买计划过期";
+  const summaryPrefix = options.summaryPrefix || "旧待买计划过期";
   let expired = 0;
   state.simulation.pendingBuyOrders = (state.simulation.pendingBuyOrders || []).map((order) => {
     if (order.status === "pending") {
       expired += 1;
-      const expiredOrder = { ...order, status: "expired", cancelReason: "20点生成新计划，旧待买计划过期" };
+      const expiredOrder = { ...order, status: "expired", cancelReason: reason };
       pushDecisionRecord({
         type: "buy_plan_expired",
         status: "expired",
@@ -877,7 +887,7 @@ function expirePendingBuyOrders(events) {
     }
     return order;
   });
-  if (expired) events.push({ type: "expire", summary: `旧待买计划过期${expired}条` });
+  if (expired) events.push({ type: "expire", summary: `${summaryPrefix}${expired}条` });
 }
 
 function createEveningBuyPlans(runKey, events) {
@@ -904,7 +914,7 @@ function createEveningBuyPlans(runKey, events) {
 
   events.push({
     type: "buy_plan",
-    summary: orders.length ? `生成次日10点待买计划${orders.length}只：${orders.map((order) => order.name).join("、")}` : "没有符合条件的次日待买计划",
+    summary: orders.length ? `生成次日买入复检计划${orders.length}只：${orders.map((order) => order.name).join("、")}` : "没有符合条件的次日待买计划",
   });
   orders.forEach((order) => {
     pushDecisionRecord({
@@ -912,7 +922,7 @@ function createEveningBuyPlans(runKey, events) {
       status: "pending",
       code: order.code,
       name: order.name,
-      summary: "20点生成次日10点待买计划",
+      summary: "20点生成次日买入复检计划",
       reason: order.reason,
       plannedEntryPrice: order.plannedEntryPrice,
       maxBuyPrice: order.maxBuyPrice,
@@ -966,13 +976,14 @@ function buildPendingBuyOrder(stock, runKey, options = {}) {
 }
 
 function executePendingBuyOrders(runKey, events) {
+  const buyCheckLabel = currentBuyCheckLabel();
   let pendingOrders = (state.simulation.pendingBuyOrders || []).filter(
     (order) => order.status === "pending" && order.plannedExecutionPhase === "morning_entry" && order.createdRunKey !== runKey
   );
   if (!pendingOrders.length) {
     pendingOrders = createMorningFallbackBuyOrders(runKey, events);
     if (!pendingOrders.length) {
-      events.push({ type: "buy_skip", summary: "10点无上一晚待买计划，且当前快照无明确可买信号，跳过买入" });
+      events.push({ type: "buy_skip", summary: `${buyCheckLabel}无待买计划，且当前快照无明确可买信号，跳过买入` });
       return;
     }
   }
@@ -981,8 +992,8 @@ function executePendingBuyOrders(runKey, events) {
     const stock = findStock(order.code);
     const price = latestPriceFor(order.code);
     if (!stock || !price) {
-      markOrderCancelled(order, "缺少10点执行价格或股票不在最新池");
-      events.push({ type: "buy_cancel", code: order.code, summary: `${order.name}取消买入：缺少10点执行价格` });
+      markOrderCancelled(order, `缺少${buyCheckLabel}执行价格或股票不在最新池`);
+      events.push({ type: "buy_cancel", code: order.code, summary: `${order.name}取消买入：缺少${buyCheckLabel}执行价格` });
       pushDecisionRecord({
         type: "buy_cancelled",
         status: "cancelled",
@@ -1000,6 +1011,23 @@ function executePendingBuyOrders(runKey, events) {
 
     const riskDecision = autoBuyDecisionFromPlan(stock, order, price);
     if (!riskDecision.shouldBuy) {
+      if (riskDecision.action === "wait") {
+        events.push({ type: "buy_wait", code: order.code, summary: `${order.name}继续等待：${riskDecision.reason}` });
+        pushDecisionRecord({
+          type: "buy_deferred",
+          status: "pending",
+          code: order.code,
+          name: order.name,
+          summary: `${order.name}等待下一次买入复检`,
+          reason: riskDecision.reason,
+          plannedEntryPrice: order.plannedEntryPrice,
+          maxBuyPrice: order.maxBuyPrice,
+          noChasePrice: order.noChasePrice,
+          snapshotPrice: price,
+          score: order.score,
+        });
+        return;
+      }
       markOrderCancelled(order, riskDecision.reason);
       events.push({ type: "buy_cancel", code: order.code, summary: `${order.name}取消买入：${riskDecision.reason}` });
       pushDecisionRecord({
@@ -1039,7 +1067,7 @@ function executePendingBuyOrders(runKey, events) {
       return;
     }
 
-    const result = buyPosition(stock, riskDecision.price, quantity, { source: "auto", reason: `10点验证成交：${order.reason}` });
+    const result = buyPosition(stock, riskDecision.price, quantity, { source: "auto", reason: `${buyCheckLabel}验证成交：${order.reason}` });
     if (!result.ok) {
       markOrderCancelled(order, result.message);
       events.push({ type: "buy_cancel", code: order.code, summary: `${order.name}取消买入：${result.message}` });
@@ -1069,14 +1097,14 @@ function executePendingBuyOrders(runKey, events) {
       type: "buy",
       code: stock.code,
       name: stock.name,
-      summary: `10点买入${stock.name}${result.quantity}股/成交${formatNumber(riskDecision.price)}/费用${formatCurrency(result.fees.total)}`,
+      summary: `${buyCheckLabel}买入${stock.name}${result.quantity}股/成交${formatNumber(riskDecision.price)}/费用${formatCurrency(result.fees.total)}`,
     });
     pushDecisionRecord({
       type: "buy_executed",
       status: "executed",
       code: stock.code,
       name: stock.name,
-      summary: `10点买入${stock.name}${result.quantity}股`,
+      summary: `${buyCheckLabel}买入${stock.name}${result.quantity}股`,
       reason: riskDecision.reason,
       plannedEntryPrice: order.plannedEntryPrice,
       maxBuyPrice: order.maxBuyPrice,
@@ -1093,6 +1121,7 @@ function executePendingBuyOrders(runKey, events) {
 }
 
 function createMorningFallbackBuyOrders(runKey, events) {
+  const buyCheckLabel = currentBuyCheckLabel();
   const settings = autoSettings();
   const slots = Math.max(0, settings.maxStocks - Object.keys(state.simulation.positions || {}).length);
   const limit = Math.min(settings.maxBuysPerRun, slots);
@@ -1108,7 +1137,7 @@ function createMorningFallbackBuyOrders(runKey, events) {
       buildPendingBuyOrder(stock, `${runKey}|morning-fallback`, {
         actionable: true,
         signalPhase: "morning_entry",
-        reasonPrefix: "10点即时计划",
+        reasonPrefix: `${buyCheckLabel}即时计划`,
       })
     );
   if (!orders.length) return [];
@@ -1117,14 +1146,14 @@ function createMorningFallbackBuyOrders(runKey, events) {
     ...orders,
     ...(state.simulation.pendingBuyOrders || []).filter((order) => order.status !== "pending").slice(0, 30),
   ].slice(0, 50);
-  events.push({ type: "buy_plan", summary: `10点无昨晚计划，使用当前快照生成即时待买计划${orders.length}只：${orders.map((order) => order.name).join("、")}` });
+  events.push({ type: "buy_plan", summary: `${buyCheckLabel}无昨晚计划，使用当前快照生成即时待买计划${orders.length}只：${orders.map((order) => order.name).join("、")}` });
   orders.forEach((order) => {
     pushDecisionRecord({
       type: "buy_plan_created",
       status: "pending",
       code: order.code,
       name: order.name,
-      summary: "10点当前快照生成即时待买计划",
+      summary: `${buyCheckLabel}当前快照生成即时待买计划`,
       reason: order.reason,
       plannedEntryPrice: order.plannedEntryPrice,
       maxBuyPrice: order.maxBuyPrice,
@@ -1137,19 +1166,20 @@ function createMorningFallbackBuyOrders(runKey, events) {
 
 function autoBuyDecisionFromPlan(stock, order, snapshotPrice) {
   const settings = autoSettings();
+  const buyCheckLabel = currentBuyCheckLabel();
   if (stock.entry_safety_block_buy || stock.buy_signal_key === "risk_wait" || stock.buy_signal_key === "avoid" || stock.status_key === "avoid") {
-    return { shouldBuy: false, reason: "10点模型风控拦截" };
+    return { shouldBuy: false, action: "cancel", reason: `${buyCheckLabel}模型风控拦截` };
   }
   const noChasePrice = firstFinite(order.noChasePrice, stock.no_chase_price);
   if (isFiniteNumber(noChasePrice) && snapshotPrice > Number(noChasePrice)) {
-    return { shouldBuy: false, reason: `10点价超过不追高线${formatNumber(noChasePrice)}` };
+    return { shouldBuy: false, action: "wait", reason: `${buyCheckLabel}价格超过不追高线${formatNumber(noChasePrice)}` };
   }
   const executionPrice = snapshotPrice * (1 + settings.morningSlippagePct);
   const maxBuyPrice = firstFinite(order.maxBuyPrice, stock.buyable_price_upper, stock.no_chase_price);
   if (isFiniteNumber(maxBuyPrice) && executionPrice > Number(maxBuyPrice)) {
-    return { shouldBuy: false, reason: `含滑点成交价${formatNumber(executionPrice)}超过最高可买价${formatNumber(maxBuyPrice)}` };
+    return { shouldBuy: false, action: "wait", reason: `含滑点成交价${formatNumber(executionPrice)}超过最高可买价${formatNumber(maxBuyPrice)}` };
   }
-  return { shouldBuy: true, price: executionPrice, reason: "10点快照验证通过" };
+  return { shouldBuy: true, price: executionPrice, reason: `${buyCheckLabel}快照验证通过` };
 }
 
 function markOrderCancelled(order, reason) {
@@ -1158,28 +1188,29 @@ function markOrderCancelled(order, reason) {
 }
 
 function runMorningRiskReview(events) {
+  const buyCheckLabel = currentBuyCheckLabel();
   Object.values(state.simulation.positions || {}).forEach((position) => {
     const stock = stockOrReview(position.code) || { code: position.code, name: position.name };
     const price = latestPriceFor(position.code);
     if (!price) return;
     const decision = autoSellDecision(stock, position, price, "morning_entry");
     if (decision.action === "sell" && decision.critical) {
-      executeSellDecision(stock, position, price, decision, events, "10点极端风险");
+      executeSellDecision(stock, position, price, decision, events, `${buyCheckLabel}极端风险`);
       return;
     }
     if (decision.action !== "hold") {
       const plan = state.simulation.sellPlans[position.code] || buildSellPlan(position, stock, currentAutoRunKey());
       plan.sellPriority = "must_sell_1430";
       plan.warning = decision.reason;
-      plan.lastDecision = "10点预警，等待14:30确认";
+      plan.lastDecision = `${buyCheckLabel}预警，等待14:30确认`;
       state.simulation.sellPlans[position.code] = plan;
-      events.push({ type: "sell_warning", code: position.code, summary: `${position.name}10点预警：${decision.reason}，等待14:30确认` });
+      events.push({ type: "sell_warning", code: position.code, summary: `${position.name}${buyCheckLabel}预警：${decision.reason}，等待14:30确认` });
       pushDecisionRecord({
         type: "sell_warning",
         status: "warning",
         code: position.code,
         name: position.name,
-        summary: `${position.name}10点卖出预警`,
+        summary: `${position.name}${buyCheckLabel}卖出预警`,
         reason: decision.reason,
         snapshotPrice: price,
         stopLossPrice: plan.hardStopPrice,
@@ -1213,7 +1244,7 @@ function executeAfternoonSellPlans(events) {
     if (decision.action === "hold" && state.simulation.sellPlans[position.code]?.sellPriority === "must_sell_1430") {
       decision.action = "sell";
       decision.fraction = 1;
-      decision.reason = state.simulation.sellPlans[position.code].warning || "10点风险预警延续到14:30";
+      decision.reason = state.simulation.sellPlans[position.code].warning || "买入复检窗口风险预警延续到14:30";
     }
     if (decision.action === "hold") return;
     executeSellDecision(stock, position, price, decision, events, "14:30执行");
@@ -1685,7 +1716,7 @@ function renderAutoStrategyControls() {
   )}，${state.lastRefreshStatus || "等待检查"}。页面关闭或被手机系统挂起后不会后台运行。`;
   byId("autoStrategyNote").textContent = `最近策略检查：${
     state.simulation.lastAutoRunKey ? state.simulation.lastAutoRunKey.split("|")[0] : "尚未执行"
-  }。模型按离散快照执行：20点生成次日计划，10点验证买入，14:30执行卖出/风控，20点复盘续订计划。${refreshText}账面收益只扣已发生费用；清仓后收益会额外扣除预计卖出费用。`;
+  }。模型按离散快照执行：20点生成次日计划，10:00/11:20/13:30分批验证买入，14:30执行卖出/风控，20点复盘续订计划。${refreshText}账面收益只扣已发生费用；清仓后收益会额外扣除预计卖出费用。`;
 }
 
 function renderSimulationPositions(positions) {
@@ -1765,7 +1796,7 @@ function renderSimulationPlans() {
   const sellPlans = Object.values(state.simulation.sellPlans || {}).filter((plan) => plan.status === "pending");
 
   if (!pendingOrders.length && !sellPlans.length) {
-    container.innerHTML = '<p class="empty-text">暂无待执行计划。20点快照会生成次日10点待买计划，并为持仓生成14:30卖出计划。</p>';
+    container.innerHTML = '<p class="empty-text">暂无待执行计划。20点快照会生成次日买入复检计划，并为持仓生成14:30卖出计划。</p>';
     return;
   }
 
@@ -1782,7 +1813,7 @@ function renderSimulationPlans() {
         </div>
         <div>
           <span>执行窗口</span>
-          <strong>次日10点验证</strong>
+          <strong>10:00/11:20/13:30买入复检</strong>
         </div>
       </article>
     `
@@ -1860,7 +1891,7 @@ function renderDecisionJournal() {
   state.simulation.decisionJournal = allRecords;
   const records = allRecords.slice(0, 20);
   if (!records.length) {
-    container.innerHTML = '<p class="empty-text">暂无决策复盘。20点生成计划、10点买入验证、14:30卖出执行后会在这里留下原因和价格纪律。</p>';
+    container.innerHTML = '<p class="empty-text">暂无决策复盘。20点生成计划、买入复检、14:30卖出执行后会在这里留下原因和价格纪律。</p>';
     return;
   }
   container.innerHTML = records

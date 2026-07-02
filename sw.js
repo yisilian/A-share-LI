@@ -1,4 +1,4 @@
-const CACHE_NAME = "a-share-li-v18";
+const CACHE_NAME = "a-share-li-v19";
 const CACHE_ASSETS = [
   "./",
   "./index.html",
