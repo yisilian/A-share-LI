@@ -1,5 +1,7 @@
 const INITIAL_SIM_CASH = 100000;
 const SIM_STORAGE_KEY = "a-share-li-simulation-v1";
+const AUTO_REFRESH_INTERVAL_MS = 2 * 60 * 1000;
+const AUTO_REFRESH_INTERVAL_LABEL = "2分钟";
 
 const DEFAULT_AUTO_SETTINGS = {
   enabled: true,
@@ -30,6 +32,11 @@ const state = {
   filter: "all",
   simulation: loadSimulation(),
   autoRunMessage: "",
+  refreshTimer: null,
+  refreshInFlight: false,
+  lastRefreshCheckAt: "",
+  lastRefreshStatus: "等待首次检查",
+  lastRefreshError: "",
 };
 
 const statusMap = {
@@ -72,6 +79,29 @@ const formatPercent = (value, digits = 2) => {
   const sign = number > 0 ? "+" : "";
   return `${sign}${number.toFixed(digits)}%`;
 };
+
+function formatRefreshTime(value) {
+  if (!value) return "尚未检查";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "尚未检查";
+  return date.toLocaleTimeString("zh-CN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+}
+
+function refreshReasonLabel(reason) {
+  const labels = {
+    auto: "自动检查",
+    initial: "首次加载",
+    manual: "手动检查",
+    online: "恢复联网检查",
+    visible: "回到前台检查",
+  };
+  return labels[reason] || "手动检查";
+}
 
 const formatFundMoney = (value) => {
   if (!isFiniteNumber(value)) return "-";
@@ -700,7 +730,11 @@ function setSimulationMessage(message, type = "info") {
 }
 
 function currentAutoRunKey() {
-  return [state.data?.generated_at, state.data?.as_of_date, state.data?.universe_scan?.update_phase_label].filter(Boolean).join("|");
+  return autoRunKeyForData(state.data);
+}
+
+function autoRunKeyForData(data) {
+  return [data?.generated_at, data?.as_of_date, data?.universe_scan?.update_phase_label].filter(Boolean).join("|");
 }
 
 function currentPhaseKey() {
@@ -1338,11 +1372,18 @@ function pushAutoLog(runKey, phase, events) {
   state.simulation.autoLog = state.simulation.autoLog.slice(0, 50);
 }
 
-async function loadPool() {
+async function loadPool(options = {}) {
+  const { silent = false, reason = "manual" } = options;
+  if (state.refreshInFlight) return { ok: false, skipped: true };
+  state.refreshInFlight = true;
+  const previousRunKey = currentAutoRunKey();
   try {
     const response = await fetch(`data/latest.json?t=${Date.now()}`, { cache: "no-store" });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    state.data = await response.json();
+    const nextData = await response.json();
+    const nextRunKey = autoRunKeyForData(nextData);
+    const changed = Boolean(nextRunKey && nextRunKey !== previousRunKey);
+    state.data = nextData;
     state.review = state.data.review || null;
     try {
       const reviewResponse = await fetch(`data/review.json?t=${Date.now()}`, { cache: "no-store" });
@@ -1352,12 +1393,29 @@ async function loadPool() {
     } catch (_) {
       state.review = state.data.review || null;
     }
+    state.lastRefreshCheckAt = new Date().toISOString();
+    state.lastRefreshError = "";
+    state.lastRefreshStatus = changed
+      ? `发现新快照：${state.data.universe_scan?.update_phase_label || state.data.generated_at || state.data.as_of_date || "-"}`
+      : `${refreshReasonLabel(reason)}：暂无新快照`;
     render();
+    if (silent && changed) {
+      setSimulationMessage(`自动刷新发现新数据：${state.data.universe_scan?.update_phase_label || state.data.generated_at || state.data.as_of_date || "-"}`, "success");
+    }
+    return { ok: true, changed, runKey: nextRunKey };
   } catch (error) {
-    byId("stockList").innerHTML = `<article class="stock-card"><div class="detail"><p class="logic">数据加载失败：${escapeHtml(
-      error.message
-    )}</p></div></article>`;
+    state.lastRefreshCheckAt = new Date().toISOString();
+    state.lastRefreshError = error.message;
+    state.lastRefreshStatus = `刷新失败：${error.message}`;
+    if (!silent) {
+      byId("stockList").innerHTML = `<article class="stock-card"><div class="detail"><p class="logic">数据加载失败：${escapeHtml(
+        error.message
+      )}</p></div></article>`;
+    }
     renderSimulationPanel();
+    return { ok: false, error };
+  } finally {
+    state.refreshInFlight = false;
   }
 }
 
@@ -1622,9 +1680,12 @@ function renderAutoStrategyControls() {
   byId("feeMinCommission").value = formatNumber(fees.minCommission, 1);
   byId("feeStampDutyRate").value = formatNumber(fees.stampDutyRate * 100, 3);
   byId("feeTransferRate").value = formatNumber(fees.transferFeeRate * 100, 4);
-  byId("autoStrategyNote").textContent = `最近检查：${
+  const refreshText = `页面自动刷新：开启，每${AUTO_REFRESH_INTERVAL_LABEL}检查一次；最近检查 ${formatRefreshTime(
+    state.lastRefreshCheckAt
+  )}，${state.lastRefreshStatus || "等待检查"}。页面关闭或被手机系统挂起后不会后台运行。`;
+  byId("autoStrategyNote").textContent = `最近策略检查：${
     state.simulation.lastAutoRunKey ? state.simulation.lastAutoRunKey.split("|")[0] : "尚未执行"
-  }。模型按离散快照执行：20点生成次日计划，10点验证买入，14:30执行卖出/风控，20点复盘续订计划。账面收益只扣已发生费用；清仓后收益会额外扣除预计卖出费用。`;
+  }。模型按离散快照执行：20点生成次日计划，10点验证买入，14:30执行卖出/风控，20点复盘续订计划。${refreshText}账面收益只扣已发生费用；清仓后收益会额外扣除预计卖出费用。`;
 }
 
 function renderSimulationPositions(positions) {
@@ -2054,6 +2115,26 @@ function bindSimulationEvents() {
   });
 }
 
+function scheduleAutoRefresh() {
+  if (state.refreshTimer) window.clearInterval(state.refreshTimer);
+
+  state.refreshTimer = window.setInterval(() => {
+    if (document.visibilityState === "visible") {
+      loadPool({ silent: true, reason: "auto" });
+    }
+  }, AUTO_REFRESH_INTERVAL_MS);
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") {
+      loadPool({ silent: true, reason: "visible" });
+    }
+  });
+
+  window.addEventListener("online", () => {
+    loadPool({ silent: true, reason: "online" });
+  });
+}
+
 document.querySelectorAll(".tab").forEach((button) => {
   button.addEventListener("click", () => {
     document.querySelectorAll(".tab").forEach((tab) => tab.classList.remove("active"));
@@ -2087,4 +2168,5 @@ if ("serviceWorker" in navigator) {
 }
 
 bindSimulationEvents();
-loadPool();
+scheduleAutoRefresh();
+loadPool({ reason: "initial" });
