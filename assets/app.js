@@ -859,7 +859,7 @@ function createEveningBuyPlans(runKey, events) {
     .filter((stock) => !state.simulation.positions[stock.code])
     .filter((stock) => Number(stock.score || 0) >= settings.minScore)
     .filter((stock) => !stock.entry_safety_block_buy && stock.buy_signal_key !== "risk_wait" && stock.buy_signal_key !== "avoid" && stock.status_key !== "avoid")
-    .sort((a, b) => Number(b.score || 0) - Number(a.score || 0))
+    .sort((a, b) => Number(isActionableBuySignal(b)) - Number(isActionableBuySignal(a)) || Number(b.score || 0) - Number(a.score || 0))
     .slice(0, limit)
     .map((stock) => buildPendingBuyOrder(stock, runKey));
 
@@ -888,18 +888,31 @@ function createEveningBuyPlans(runKey, events) {
   });
 }
 
-function buildPendingBuyOrder(stock, runKey) {
-  const plannedEntryPrice = firstFinite(stock.recommended_entry_price, stock.buyable_price, stock.close);
-  const maxBuyPrice = Math.min(
-    ...[
-      stock.no_chase_price,
-      stock.buyable_price_upper,
-      plannedEntryPrice ? plannedEntryPrice * 1.03 : null,
-      stock.buyable_price ? Number(stock.buyable_price) * 1.012 : null,
-    ]
-      .filter((value) => isFiniteNumber(value) && Number(value) > 0)
-      .map(Number)
-  );
+function isActionableBuySignal(stock) {
+  return Boolean(stock?.is_buyable_now || stock?.buy_signal_key === "pullback_buy" || stock?.buy_signal_key === "breakout_buy");
+}
+
+function buildPendingBuyOrder(stock, runKey, options = {}) {
+  const actionable = options.actionable ?? isActionableBuySignal(stock);
+  const plannedEntryPrice = actionable
+    ? firstFinite(stock.buyable_price, stock.close, stock.recommended_entry_price)
+    : firstFinite(stock.recommended_entry_price, stock.buyable_price, stock.close);
+  const maxCandidates = actionable
+    ? [
+        stock.buyable_price_upper,
+        stock.breakout_buy_upper_price,
+        stock.no_chase_price,
+        stock.buyable_price ? Number(stock.buyable_price) * 1.012 : null,
+        plannedEntryPrice ? plannedEntryPrice * 1.012 : null,
+      ]
+    : [
+        stock.no_chase_price,
+        stock.buyable_price_upper,
+        stock.breakout_buy_upper_price,
+        plannedEntryPrice ? plannedEntryPrice * 1.03 : null,
+        stock.buyable_price ? Number(stock.buyable_price) * 1.012 : null,
+      ];
+  const maxBuyPrice = Math.min(...maxCandidates.filter((value) => isFiniteNumber(value) && Number(value) > 0).map(Number));
   const safeMaxBuyPrice = Number.isFinite(maxBuyPrice) ? maxBuyPrice : plannedEntryPrice;
   return {
     id: `${stock.code}-${runKey}`,
@@ -907,24 +920,27 @@ function buildPendingBuyOrder(stock, runKey) {
     name: stock.name,
     status: "pending",
     signalDate: currentTradeDate(),
-    signalPhase: "evening_watch",
-    createdRunKey: runKey,
+    signalPhase: options.signalPhase || "evening_watch",
+    createdRunKey: options.createdRunKey || runKey,
     plannedExecutionPhase: "morning_entry",
     plannedEntryPrice,
     maxBuyPrice: safeMaxBuyPrice,
     noChasePrice: firstFinite(stock.no_chase_price),
     score: Number(stock.score || 0),
-    reason: `20点计划：${stock.buy_signal_label || stock.intervention_status || "模型候选"}`,
+    reason: `${options.reasonPrefix || "20点计划"}：${stock.buy_signal_label || stock.intervention_status || "模型候选"}`,
   };
 }
 
 function executePendingBuyOrders(runKey, events) {
-  const pendingOrders = (state.simulation.pendingBuyOrders || []).filter(
+  let pendingOrders = (state.simulation.pendingBuyOrders || []).filter(
     (order) => order.status === "pending" && order.plannedExecutionPhase === "morning_entry" && order.createdRunKey !== runKey
   );
   if (!pendingOrders.length) {
-    events.push({ type: "buy_skip", summary: "10点无上一晚待买计划，跳过买入" });
-    return;
+    pendingOrders = createMorningFallbackBuyOrders(runKey, events);
+    if (!pendingOrders.length) {
+      events.push({ type: "buy_skip", summary: "10点无上一晚待买计划，且当前快照无明确可买信号，跳过买入" });
+      return;
+    }
   }
 
   pendingOrders.forEach((order) => {
@@ -1040,6 +1056,49 @@ function executePendingBuyOrders(runKey, events) {
       score: order.score,
     });
   });
+}
+
+function createMorningFallbackBuyOrders(runKey, events) {
+  const settings = autoSettings();
+  const slots = Math.max(0, settings.maxStocks - Object.keys(state.simulation.positions || {}).length);
+  const limit = Math.min(settings.maxBuysPerRun, slots);
+  if (!limit) return [];
+  const orders = [...stocks()]
+    .filter((stock) => !state.simulation.positions[stock.code])
+    .filter((stock) => Number(stock.score || 0) >= settings.minScore)
+    .filter((stock) => isActionableBuySignal(stock))
+    .filter((stock) => !stock.entry_safety_block_buy && stock.buy_signal_key !== "risk_wait" && stock.buy_signal_key !== "avoid" && stock.status_key !== "avoid")
+    .sort((a, b) => Number(b.score || 0) - Number(a.score || 0))
+    .slice(0, limit)
+    .map((stock) =>
+      buildPendingBuyOrder(stock, `${runKey}|morning-fallback`, {
+        actionable: true,
+        signalPhase: "morning_entry",
+        reasonPrefix: "10点即时计划",
+      })
+    );
+  if (!orders.length) return [];
+
+  state.simulation.pendingBuyOrders = [
+    ...orders,
+    ...(state.simulation.pendingBuyOrders || []).filter((order) => order.status !== "pending").slice(0, 30),
+  ].slice(0, 50);
+  events.push({ type: "buy_plan", summary: `10点无昨晚计划，使用当前快照生成即时待买计划${orders.length}只：${orders.map((order) => order.name).join("、")}` });
+  orders.forEach((order) => {
+    pushDecisionRecord({
+      type: "buy_plan_created",
+      status: "pending",
+      code: order.code,
+      name: order.name,
+      summary: "10点当前快照生成即时待买计划",
+      reason: order.reason,
+      plannedEntryPrice: order.plannedEntryPrice,
+      maxBuyPrice: order.maxBuyPrice,
+      noChasePrice: order.noChasePrice,
+      score: order.score,
+    });
+  });
+  return orders;
 }
 
 function autoBuyDecisionFromPlan(stock, order, snapshotPrice) {
