@@ -3373,8 +3373,9 @@ def build_payload() -> dict[str, Any]:
         raise RuntimeError("; ".join(errors) or "no rows generated")
 
     as_of_date = max(row["as_of_date"] for row in rows)
+    generated_at = datetime.now(CN_TZ).isoformat(timespec="seconds")
     market_environment = universe_payload.get("market_environment") or {}
-    current_feedback_context = feedback_context_meta(market_environment, datetime.now(CN_TZ))
+    current_feedback_context = feedback_context_meta(market_environment, generated_at)
     apply_feedback_context(rows, current_feedback_context)
     universe_payload["update_phase"] = current_feedback_context["update_phase"]
     universe_payload["update_phase_label"] = current_feedback_context["update_phase_label"]
@@ -3443,8 +3444,10 @@ def build_payload() -> dict[str, Any]:
 
     return {
         "schema_version": "1.0",
-        "generated_at": datetime.now(CN_TZ).isoformat(timespec="seconds"),
+        "generated_at": generated_at,
         "as_of_date": as_of_date,
+        "update_phase": current_feedback_context["update_phase"],
+        "update_phase_label": current_feedback_context["update_phase_label"],
         "market": "A股主板",
         "source_status": {
             "quotes": "akshare.stock_zh_a_spot intraday snapshot + stock_zh_a_daily qfq / Sina + Eastmoney/Tonghuashun fund flow + Sina turnover chip estimate",
