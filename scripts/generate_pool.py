@@ -36,6 +36,18 @@ ENTRY_FEEDBACK_PRICE_CAP_UP = 0.6
 ENTRY_CRASH_RETURN_THRESHOLD = -5.0
 ENTRY_ADVERSE_DRAW_THRESHOLD = -7.0
 MAINBOARD_PREFIXES = ("000", "001", "002", "003", "600", "601", "603", "605")
+SCHEDULE_PHASE_MAP = {
+    "0 2 * * 1-5": ("morning_entry", "10点早盘接入"),
+    "8 2 * * 1-5": ("morning_entry", "10点早盘接入"),
+    "20 3 * * 1-5": ("morning_entry", "11:20午前买入复检"),
+    "28 3 * * 1-5": ("morning_entry", "11:20午前买入复检"),
+    "30 5 * * 1-5": ("morning_entry", "13:30午后买入复检"),
+    "38 5 * * 1-5": ("morning_entry", "13:30午后买入复检"),
+    "30 6 * * 1-5": ("afternoon_risk", "14:30尾盘风控"),
+    "38 6 * * 1-5": ("afternoon_risk", "14:30尾盘风控"),
+    "0 12 * * 1-5": ("evening_watch", "20点次日关注"),
+    "8 12 * * 1-5": ("evening_watch", "20点次日关注"),
+}
 EASTMONEY_FUND_FLOW_URL = "https://push2.eastmoney.com/api/qt/clist/get"
 EASTMONEY_FUND_FLOW_FS = "m:0+t:6+f:!2,m:0+t:13+f:!2,m:0+t:80+f:!2,m:1+t:2+f:!2,m:1+t:23+f:!2,m:0+t:7+f:!2,m:1+t:3+f:!2"
 FUND_FLOW_KEYS = [
@@ -1452,6 +1464,14 @@ def entry_gap_bucket(gap_pct: Any) -> str:
 
 
 def update_phase_from_timestamp(value: Any = None) -> tuple[str, str]:
+    scheduled_cron = (
+        os.getenv("GITHUB_EVENT_SCHEDULE")
+        or os.getenv("A_SHARE_LI_SCHEDULE_CRON")
+        or ""
+    ).strip()
+    if scheduled_cron in SCHEDULE_PHASE_MAP:
+        return SCHEDULE_PHASE_MAP[scheduled_cron]
+
     dt: datetime | None = None
     if isinstance(value, datetime):
         dt = value

@@ -154,6 +154,7 @@ GitHub Actions 会在工作日北京时间 10:00、11:20、13:30、14:30、20:00
 - `model_feedback.cleaning_policy`：声明反馈清洗策略。乱码/异常值因子会被过滤，`筹码暂缺` 只作为数据质量问题，不再直接当负面筹码因子惩罚。
 - `model_feedback.segmentation`：把历史反馈按 `market_regime` 和 `update_phase` 分层统计，避免早盘、尾盘、晚间关注池混用同一组反馈权重。
 - `universe_scan.update_phase` / `update_phase_label`：标记本次更新属于 `10点早盘接入`、`11:20午前买入复检`、`13:30午后买入复检`、`14:30尾盘风控` 或 `20点次日关注`。
+- GitHub Actions 定时任务可能排队延迟或偶发漏跑，因此工作流使用主时点 + 备用时点，并把计划 cron 传入模型；模型优先按计划时段分层，避免实际执行完成时间过晚导致阶段反馈错配。
 - `portfolio_concentration`：组合层主题拥挤度约束。候选池内同一主题过度集中时，后续同主题股票只做轻微排序降权，不直接否定个股逻辑。
 
 新增单股字段：
