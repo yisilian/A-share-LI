@@ -23,6 +23,8 @@ REVIEW_PATH = DATA_DIR / "review.json"
 UNIVERSE_PATH = DATA_DIR / "universe_scan.json"
 MODEL_FEEDBACK_PATH = DATA_DIR / "model_feedback.json"
 HISTORY_DIR = DATA_DIR / "history"
+HISTORY_SNAPSHOT_DIR = HISTORY_DIR / "snapshots"
+HISTORY_SNAPSHOT_RETENTION = 120
 CN_TZ = timezone(timedelta(hours=8))
 FINAL_POOL_SIZE = 10
 DEEP_ANALYSIS_LIMIT = 28
@@ -1206,12 +1208,37 @@ def parse_date_value(value: Any):
         return None
 
 
+def parse_datetime_value(value: Any) -> datetime | None:
+    if not value:
+        return None
+    try:
+        dt = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=CN_TZ)
+    return dt.astimezone(CN_TZ)
+
+
+def snapshot_sort_key(snapshot: dict[str, Any]) -> tuple[Any, str]:
+    dt = parse_datetime_value(snapshot.get("generated_at"))
+    if dt is not None:
+        return dt, str(snapshot.get("snapshot_id") or "")
+    parsed_date = parse_date_value(snapshot.get("as_of_date"))
+    fallback_dt = datetime.combine(parsed_date or datetime.min.date(), datetime.min.time(), tzinfo=CN_TZ)
+    return fallback_dt, str(snapshot.get("snapshot_id") or "")
+
+
 def load_history_snapshots() -> list[dict[str, Any]]:
     if not HISTORY_DIR.exists():
         return []
 
-    snapshots: list[dict[str, Any]] = []
-    for path in sorted(HISTORY_DIR.glob("*.json")):
+    snapshots_by_key: dict[str, dict[str, Any]] = {}
+    paths = [*HISTORY_DIR.glob("*.json")]
+    if HISTORY_SNAPSHOT_DIR.exists():
+        paths.extend(HISTORY_SNAPSHOT_DIR.glob("*.json"))
+
+    for path in sorted(paths):
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
@@ -1221,17 +1248,27 @@ def load_history_snapshots() -> list[dict[str, Any]]:
         if not isinstance(stocks, list):
             continue
 
-        snapshots.append(
-            {
-                "as_of_date": data.get("as_of_date") or path.stem,
-                "stocks": stocks,
-            }
-        )
-    return snapshots
+        as_of_date = data.get("as_of_date") or path.stem[:10]
+        generated_at = data.get("generated_at")
+        snapshot_id = str(generated_at or path.stem)
+        key = f"{as_of_date}|{snapshot_id}"
+        if key in snapshots_by_key:
+            continue
+
+        snapshots_by_key[key] = {
+            "as_of_date": as_of_date,
+            "generated_at": generated_at,
+            "snapshot_id": snapshot_id,
+            "update_phase": data.get("update_phase"),
+            "update_phase_label": data.get("update_phase_label"),
+            "universe_scan": data.get("universe_scan") or {},
+            "stocks": stocks,
+        }
+    return sorted(snapshots_by_key.values(), key=snapshot_sort_key)
 
 
-def tracking_entry_key(date_value: Any, source: str) -> str:
-    return f"{date_value}|{source}"
+def tracking_entry_key(date_value: Any, source: str, snapshot_id: Any = None) -> str:
+    return f"{date_value}|{source}|{snapshot_id or ''}"
 
 
 TRACKING_SOURCE_ORDER = {
@@ -1244,8 +1281,12 @@ TRACKING_SOURCE_ORDER = {
 
 
 def tracking_sort_key(item: dict[str, Any]) -> tuple[Any, int]:
+    dt = parse_datetime_value(item.get("generated_at"))
+    if dt is None:
+        parsed_date = parse_date_value(item.get("date"))
+        dt = datetime.combine(parsed_date or datetime.min.date(), datetime.min.time(), tzinfo=CN_TZ)
     return (
-        parse_date_value(item.get("date")) or datetime.min.date(),
+        dt,
         TRACKING_SOURCE_ORDER.get(str(item.get("source") or ""), 50),
     )
 
@@ -1284,6 +1325,7 @@ def attach_tracking(rows: list[dict[str, Any]], as_of_date: str) -> None:
         snapshot_date = snapshot.get("as_of_date")
         if not snapshot_date:
             continue
+        snapshot_id = snapshot.get("snapshot_id") or snapshot.get("generated_at")
         for stock in snapshot.get("stocks", []):
             code = stock.get("code")
             if code not in entries_by_code:
@@ -1291,8 +1333,9 @@ def attach_tracking(rows: list[dict[str, Any]], as_of_date: str) -> None:
             close = safe_float(stock.get("close"))
             if close is None:
                 continue
-            entries_by_code[code][tracking_entry_key(snapshot_date, "history")] = {
+            entries_by_code[code][tracking_entry_key(snapshot_date, "history", snapshot_id)] = {
                 "date": str(snapshot_date),
+                "generated_at": snapshot.get("generated_at"),
                 "close": close,
                 "rank": stock.get("rank"),
                 "status_key": stock.get("status_key"),
@@ -1421,7 +1464,9 @@ def build_tracking_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def theme_group(theme: Any) -> str:
-    text = str(theme or "")
+    text = str(theme or "").strip()
+    if "\ufffd" in text or (text.count("?") >= 2 and text.count("?") / max(1, len(text)) >= 0.25):
+        return "未分组"
     groups = [
         ("AI半导体", ("AI", "半导体", "PCB", "封装", "光模块", "算力", "电子材料", "封测")),
         ("电力设备", ("电网", "电力", "特高压", "输变电", "变压器", "海缆", "能源装备", "燃机")),
@@ -1509,6 +1554,13 @@ def feedback_value_is_noisy(value: Any) -> bool:
         return True
     question_count = text.count("?")
     return question_count >= 2 and question_count / max(1, len(text)) >= 0.25
+
+
+def clean_display_text(value: Any, fallback: Any = "未知") -> Any:
+    text = clean_feedback_value(value)
+    if not text or feedback_value_is_noisy(text):
+        return fallback
+    return text
 
 
 def chip_value_is_missing(value: Any) -> bool:
@@ -1733,7 +1785,7 @@ def build_feedback_snapshots(
     as_of_date: str,
     market_environment: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
-    by_date: dict[str, list[dict[str, Any]]] = {}
+    snapshots_for_feedback: list[dict[str, Any]] = []
     current_date = parse_date_value(as_of_date)
     for snapshot in load_history_snapshots():
         snapshot_date = str(snapshot.get("as_of_date") or "")
@@ -1744,15 +1796,31 @@ def build_feedback_snapshots(
         snapshot_context = feedback_context_meta(snapshot_market, snapshot.get("generated_at") or snapshot_date)
         rows = feedback_snapshot_rows(snapshot.get("stocks", []), snapshot_context)
         if rows:
-            by_date[snapshot_date] = rows
+            snapshots_for_feedback.append(
+                {
+                    "as_of_date": snapshot_date,
+                    "generated_at": snapshot.get("generated_at"),
+                    "snapshot_id": snapshot.get("snapshot_id"),
+                    "stocks": rows,
+                }
+            )
     current_context = feedback_context_meta(market_environment, datetime.now(CN_TZ))
     current_cleaned = feedback_snapshot_rows(current_rows, current_context)
     if current_cleaned:
-        by_date[as_of_date] = current_cleaned
-    return [
-        {"as_of_date": date, "stocks": by_date[date]}
-        for date in sorted(by_date, key=lambda value: parse_date_value(value) or datetime.min.date())
-    ]
+        current_id = datetime.now(CN_TZ).isoformat(timespec="seconds")
+        snapshots_for_feedback.append(
+            {
+                "as_of_date": as_of_date,
+                "generated_at": current_id,
+                "snapshot_id": current_id,
+                "stocks": current_cleaned,
+            }
+        )
+    deduped: dict[str, dict[str, Any]] = {}
+    for snapshot in snapshots_for_feedback:
+        key = f"{snapshot.get('as_of_date')}|{snapshot.get('generated_at') or snapshot.get('snapshot_id') or ''}"
+        deduped[key] = snapshot
+    return sorted(deduped.values(), key=snapshot_sort_key)
 
 
 def finalize_feedback_factor(raw: dict[str, Any]) -> dict[str, Any]:
@@ -2752,13 +2820,15 @@ def build_review_center(
         snapshot_date = snapshot.get("as_of_date")
         if not snapshot_date:
             continue
+        snapshot_id = snapshot.get("snapshot_id") or snapshot.get("generated_at")
         for stock in snapshot.get("stocks", []):
             code = stock.get("code")
             close = safe_float(stock.get("close"))
             if not code or close is None:
                 continue
-            entries_by_code.setdefault(code, {})[tracking_entry_key(snapshot_date, "history")] = {
+            entries_by_code.setdefault(code, {})[tracking_entry_key(snapshot_date, "history", snapshot_id)] = {
                 "date": str(snapshot_date),
+                "generated_at": snapshot.get("generated_at"),
                 "close": close,
                 "rank": stock.get("rank"),
                 "status_key": stock.get("status_key"),
@@ -2953,9 +3023,12 @@ def build_review_center(
             entry_drawdown_pct = (min_close / first_entry_reference - 1) * 100
 
         identity = current_row or latest or first
+        identity_name = clean_display_text(identity.get("name"), code)
+        identity_theme = clean_display_text(identity.get("theme") or first.get("theme"), "")
+        first_buy_signal_label = clean_display_text(first_entry_source.get("buy_signal_label"), None)
         review_attribution = classify_review_attribution(
             active=active,
-            theme=identity.get("theme") or first.get("theme"),
+            theme=identity_theme,
             first_close=first_close,
             first_entry_reference=first_entry_reference,
             first_entry_gap_pct=first_entry_source.get("entry_gap_pct"),
@@ -2971,8 +3044,8 @@ def build_review_center(
         records.append(
             {
                 "code": code,
-                "name": identity.get("name") or code,
-                "theme": identity.get("theme") or "",
+                "name": identity_name,
+                "theme": identity_theme,
                 "board": identity.get("board") or board_for(code),
                 "active_in_current_pool": active,
                 "current_rank": current_row.get("rank") if current_row else None,
@@ -2987,7 +3060,7 @@ def build_review_center(
                 "first_entry_price_upper": round_or_none(first_entry_source.get("entry_price_upper")),
                 "first_buyable_price": round_or_none(first_buyable_price),
                 "first_buy_signal_key": first_entry_source.get("buy_signal_key"),
-                "first_buy_signal_label": first_entry_source.get("buy_signal_label"),
+                "first_buy_signal_label": first_buy_signal_label,
                 "first_is_buyable_now": first_entry_source.get("is_buyable_now"),
                 "first_entry_gap_pct": round_or_none(first_entry_source.get("entry_gap_pct")),
                 "first_entry_safety_adjustment_pct": round_or_none(first_entry_source.get("entry_safety_adjustment_pct"), 3),
@@ -3478,9 +3551,30 @@ def build_payload() -> dict[str, Any]:
     }
 
 
+def history_snapshot_filename(payload: dict[str, Any]) -> str:
+    dt = parse_datetime_value(payload.get("generated_at")) or datetime.now(CN_TZ)
+    return f"{dt.strftime('%Y-%m-%dT%H%M%S%z')}.json"
+
+
+def prune_history_snapshots() -> None:
+    if not HISTORY_SNAPSHOT_DIR.exists():
+        return
+    files = sorted(
+        HISTORY_SNAPSHOT_DIR.glob("*.json"),
+        key=lambda path: path.stat().st_mtime,
+        reverse=True,
+    )
+    for path in files[HISTORY_SNAPSHOT_RETENTION:]:
+        try:
+            path.unlink()
+        except OSError:
+            pass
+
+
 def write_payload(payload: dict[str, Any]) -> None:
     DATA_DIR.mkdir(exist_ok=True)
     HISTORY_DIR.mkdir(exist_ok=True)
+    HISTORY_SNAPSHOT_DIR.mkdir(exist_ok=True)
     text = json.dumps(payload, ensure_ascii=False, indent=2, allow_nan=False)
     LATEST_PATH.write_text(text + "\n", encoding="utf-8")
     review_payload = payload.get("review")
@@ -3494,6 +3588,9 @@ def write_payload(payload: dict[str, Any]) -> None:
         MODEL_FEEDBACK_PATH.write_text(json.dumps(feedback_payload, ensure_ascii=False, indent=2, allow_nan=False) + "\n", encoding="utf-8")
     history_path = HISTORY_DIR / f"{payload['as_of_date']}.json"
     history_path.write_text(text + "\n", encoding="utf-8")
+    snapshot_path = HISTORY_SNAPSHOT_DIR / history_snapshot_filename(payload)
+    snapshot_path.write_text(text + "\n", encoding="utf-8")
+    prune_history_snapshots()
 
 
 def main() -> None:

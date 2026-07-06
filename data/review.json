@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0",
-  "generated_at": "2026-07-06T18:10:10+08:00",
+  "generated_at": "2026-07-06T18:40:40+08:00",
   "as_of_date": "2026-07-06",
   "summary": {
     "tracked_count": 47,
@@ -179,7 +179,7 @@
       "last_seen_rank": 1,
       "latest_date": "2026-07-06",
       "latest_price": 56.77,
-      "latest_source": "current_pool",
+      "latest_source": "history_snapshot",
       "tracking_days": 18,
       "snapshot_count": 11,
       "return_since_first_pct": 17.24,
@@ -194,7 +194,8 @@
         "primary": "positive_validation",
         "theme_group": "创新药",
         "factors": [
-          "entry_price_better_than_first_recommend"
+          "entry_price_better_than_first_recommend",
+          "latest_quote_from_history_snapshot"
         ],
         "model_action": "方向验证为正，同时保留接入价纪律，避免首推价过高。"
       },
@@ -221,7 +222,7 @@
       "first_entry_price_upper": null,
       "first_buyable_price": null,
       "first_buy_signal_key": null,
-      "first_buy_signal_label": null,
+      "first_buy_signal_label": "未知",
       "first_is_buyable_now": null,
       "first_entry_gap_pct": null,
       "first_entry_safety_adjustment_pct": null,
@@ -291,7 +292,7 @@
       "last_seen_rank": 9,
       "latest_date": "2026-07-06",
       "latest_price": 803.6,
-      "latest_source": "current_pool",
+      "latest_source": "history_snapshot",
       "tracking_days": 18,
       "snapshot_count": 12,
       "return_since_first_pct": 11.45,
@@ -306,7 +307,8 @@
         "primary": "positive_validation",
         "theme_group": "AI半导体",
         "factors": [
-          "entry_price_better_than_first_recommend"
+          "entry_price_better_than_first_recommend",
+          "latest_quote_from_history_snapshot"
         ],
         "model_action": "方向验证为正，同时保留接入价纪律，避免首推价过高。"
       },
@@ -489,7 +491,7 @@
       "theme": "家电/分红",
       "board": "深市主板",
       "active_in_current_pool": true,
-      "current_rank": 4,
+      "current_rank": 3,
       "current_status_key": "wait",
       "first_recommend_date": "2026-06-26",
       "first_recommend_price": 37.02,
@@ -515,7 +517,7 @@
       "last_seen_rank": 4,
       "latest_date": "2026-07-06",
       "latest_price": 39.0,
-      "latest_source": "current_pool",
+      "latest_source": "history_snapshot",
       "tracking_days": 10,
       "snapshot_count": 8,
       "return_since_first_pct": 5.35,
@@ -530,7 +532,8 @@
         "primary": "positive_validation",
         "theme_group": "消费医药",
         "factors": [
-          "entry_price_better_than_first_recommend"
+          "entry_price_better_than_first_recommend",
+          "latest_quote_from_history_snapshot"
         ],
         "model_action": "方向验证为正，同时保留接入价纪律，避免首推价过高。"
       },
@@ -571,7 +574,7 @@
       "last_seen_rank": 5,
       "latest_date": "2026-07-06",
       "latest_price": 37.64,
-      "latest_source": "current_pool",
+      "latest_source": "history_snapshot",
       "tracking_days": 18,
       "snapshot_count": 9,
       "return_since_first_pct": 4.15,
@@ -586,7 +589,8 @@
         "primary": "neutral_tracking",
         "theme_group": "军工船舶",
         "factors": [
-          "inside_validation_band"
+          "inside_validation_band",
+          "latest_quote_from_history_snapshot"
         ],
         "model_action": "继续观察，不作强反馈。"
       },
@@ -657,7 +661,7 @@
       "theme": "家电/机器人",
       "board": "深市主板",
       "active_in_current_pool": true,
-      "current_rank": 7,
+      "current_rank": 6,
       "current_status_key": "wait",
       "first_recommend_date": "2026-06-22",
       "first_recommend_price": 78.28,
@@ -683,7 +687,7 @@
       "last_seen_rank": 7,
       "latest_date": "2026-07-06",
       "latest_price": 80.0,
-      "latest_source": "current_pool",
+      "latest_source": "history_snapshot",
       "tracking_days": 14,
       "snapshot_count": 9,
       "return_since_first_pct": 2.2,
@@ -698,7 +702,8 @@
         "primary": "neutral_tracking",
         "theme_group": "高端制造",
         "factors": [
-          "inside_validation_band"
+          "inside_validation_band",
+          "latest_quote_from_history_snapshot"
         ],
         "model_action": "继续观察，不作强反馈。"
       },
@@ -713,7 +718,7 @@
       "theme": "乳制品消费",
       "board": "沪市主板",
       "active_in_current_pool": true,
-      "current_rank": 2,
+      "current_rank": 4,
       "current_status_key": "wait",
       "first_recommend_date": "2026-06-30",
       "first_recommend_price": 24.58,
@@ -739,7 +744,7 @@
       "last_seen_rank": 2,
       "latest_date": "2026-07-06",
       "latest_price": 25.07,
-      "latest_source": "current_pool",
+      "latest_source": "history_snapshot",
       "tracking_days": 6,
       "snapshot_count": 5,
       "return_since_first_pct": 1.99,
@@ -754,7 +759,8 @@
         "primary": "neutral_tracking",
         "theme_group": "消费医药",
         "factors": [
-          "inside_validation_band"
+          "inside_validation_band",
+          "latest_quote_from_history_snapshot"
         ],
         "model_action": "继续观察，不作强反馈。"
       },
@@ -1105,7 +1111,7 @@
       "theme": "电网自动化/电力IT",
       "board": "沪市主板",
       "active_in_current_pool": true,
-      "current_rank": 10,
+      "current_rank": 8,
       "current_status_key": "wait",
       "first_recommend_date": "2026-06-18",
       "first_recommend_price": 23.06,
@@ -1131,7 +1137,7 @@
       "last_seen_rank": 10,
       "latest_date": "2026-07-06",
       "latest_price": 23.16,
-      "latest_source": "current_pool",
+      "latest_source": "history_snapshot",
       "tracking_days": 18,
       "snapshot_count": 9,
       "return_since_first_pct": 0.43,
@@ -1146,7 +1152,8 @@
         "primary": "neutral_tracking",
         "theme_group": "电力设备",
         "factors": [
-          "inside_validation_band"
+          "inside_validation_band",
+          "latest_quote_from_history_snapshot"
         ],
         "model_action": "继续观察，不作强反馈。"
       },
@@ -1217,7 +1224,7 @@
       "theme": "银行/财富管理",
       "board": "沪市主板",
       "active_in_current_pool": true,
-      "current_rank": 3,
+      "current_rank": 2,
       "current_status_key": "wait",
       "first_recommend_date": "2026-06-23",
       "first_recommend_price": 37.78,
@@ -1243,7 +1250,7 @@
       "last_seen_rank": 3,
       "latest_date": "2026-07-06",
       "latest_price": 37.73,
-      "latest_source": "current_pool",
+      "latest_source": "history_snapshot",
       "tracking_days": 13,
       "snapshot_count": 7,
       "return_since_first_pct": -0.13,
@@ -1258,7 +1265,8 @@
         "primary": "neutral_tracking",
         "theme_group": "大金融",
         "factors": [
-          "inside_validation_band"
+          "inside_validation_band",
+          "latest_quote_from_history_snapshot"
         ],
         "model_action": "继续观察，不作强反馈。"
       },
@@ -1777,7 +1785,7 @@
       "theme": "铜/黄金资源",
       "board": "沪市主板",
       "active_in_current_pool": true,
-      "current_rank": 6,
+      "current_rank": 7,
       "current_status_key": "wait",
       "first_recommend_date": "2026-06-18",
       "first_recommend_price": 29.69,
@@ -1803,7 +1811,7 @@
       "last_seen_rank": 6,
       "latest_date": "2026-07-06",
       "latest_price": 28.28,
-      "latest_source": "current_pool",
+      "latest_source": "history_snapshot",
       "tracking_days": 18,
       "snapshot_count": 11,
       "return_since_first_pct": -4.75,
@@ -1818,7 +1826,8 @@
         "primary": "neutral_tracking",
         "theme_group": "资源周期",
         "factors": [
-          "inside_validation_band"
+          "inside_validation_band",
+          "latest_quote_from_history_snapshot"
         ],
         "model_action": "继续观察，不作强反馈。"
       },
@@ -1944,8 +1953,8 @@
     },
     {
       "code": "600893",
-      "name": "????",
-      "theme": "?????",
+      "name": "600893",
+      "theme": "",
       "board": "沪市主板",
       "active_in_current_pool": false,
       "current_rank": null,
@@ -1960,7 +1969,7 @@
       "first_entry_price_upper": 40.28,
       "first_buyable_price": null,
       "first_buy_signal_key": "wait",
-      "first_buy_signal_label": "????",
+      "first_buy_signal_label": null,
       "first_is_buyable_now": false,
       "first_entry_gap_pct": 7.14,
       "first_entry_safety_adjustment_pct": null,
@@ -1987,7 +1996,7 @@
       "review_status": "已调出-负收益",
       "review_attribution": {
         "primary": "negative_review",
-        "theme_group": "?????",
+        "theme_group": "未分组",
         "factors": [
           "exited_negative_feedback"
         ],
@@ -2063,7 +2072,7 @@
       "theme": "输变电设备",
       "board": "深市主板",
       "active_in_current_pool": true,
-      "current_rank": 8,
+      "current_rank": 10,
       "current_status_key": "wait",
       "first_recommend_date": "2026-06-18",
       "first_recommend_price": 190.2,
@@ -2089,7 +2098,7 @@
       "last_seen_rank": 8,
       "latest_date": "2026-07-06",
       "latest_price": 174.2,
-      "latest_source": "current_pool",
+      "latest_source": "history_snapshot",
       "tracking_days": 18,
       "snapshot_count": 10,
       "return_since_first_pct": -8.41,
@@ -2104,6 +2113,7 @@
         "primary": "negative_review",
         "theme_group": "电力设备",
         "factors": [
+          "latest_quote_from_history_snapshot",
           "post_recommend_drawdown_too_deep",
           "profit_not_protected",
           "still_active_negative_feedback"
@@ -2191,7 +2201,7 @@
       "first_entry_price_upper": null,
       "first_buyable_price": null,
       "first_buy_signal_key": null,
-      "first_buy_signal_label": null,
+      "first_buy_signal_label": "未知",
       "first_is_buyable_now": null,
       "first_entry_gap_pct": null,
       "first_entry_safety_adjustment_pct": null,
@@ -2307,7 +2317,7 @@
       "first_entry_price_upper": null,
       "first_buyable_price": null,
       "first_buy_signal_key": null,
-      "first_buy_signal_label": null,
+      "first_buy_signal_label": "未知",
       "first_is_buyable_now": null,
       "first_entry_gap_pct": null,
       "first_entry_safety_adjustment_pct": null,

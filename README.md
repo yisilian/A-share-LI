@@ -73,6 +73,9 @@ python scripts/generate_pool.py
 - `data/review.json`
 - `data/universe_scan.json`
 - `data/history/YYYY-MM-DD.json`
+- `data/history/snapshots/YYYY-MM-DDTHHMMSS+0800.json`
+
+其中 `data/history/YYYY-MM-DD.json` 保存当天最新快照，`data/history/snapshots/` 保存最近一段时间的分时生成快照，用于区分 10:00、11:20、13:30、14:30、20:00 不同更新时段的回访和模型反馈。
 
 ## GitHub Pages 部署
 
