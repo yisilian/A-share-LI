@@ -1691,6 +1691,25 @@ def future_closes_for_code(snapshots: list[dict[str, Any]], start_index: int, ho
     return closes
 
 
+def future_snapshot_index_for_horizon(snapshots: list[dict[str, Any]], start_index: int, horizon: int) -> int | None:
+    start_date = parse_date_value(snapshots[start_index].get("as_of_date"))
+    future_dates: list[Any] = []
+    date_to_latest_index: dict[Any, int] = {}
+    for index in range(start_index + 1, len(snapshots)):
+        snapshot_date = parse_date_value(snapshots[index].get("as_of_date"))
+        if snapshot_date is None:
+            continue
+        if start_date is not None and snapshot_date <= start_date:
+            continue
+        if snapshot_date not in date_to_latest_index:
+            future_dates.append(snapshot_date)
+        date_to_latest_index[snapshot_date] = index
+
+    if len(future_dates) < horizon:
+        return None
+    return date_to_latest_index.get(future_dates[horizon - 1])
+
+
 def future_lows_for_code(
     snapshots: list[dict[str, Any]],
     start_index: int,
@@ -1939,8 +1958,8 @@ def build_model_feedback(
         if not start_stocks:
             continue
         for horizon in FEEDBACK_HORIZONS:
-            future_index = index + horizon
-            if future_index >= len(snapshots):
+            future_index = future_snapshot_index_for_horizon(snapshots, index, horizon)
+            if future_index is None:
                 continue
             future_stocks = snapshots[future_index].get("stocks", [])
             future_by_code = {stock.get("code"): stock for stock in future_stocks if stock.get("code")}

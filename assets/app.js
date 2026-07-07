@@ -156,8 +156,7 @@ const feedbackClass = (value) => {
 
 const formatBuyPrice = (stock) => {
   if (stock.is_buyable_now) return formatNumber(stock.buyable_price);
-  const nextPrice = formatNumber(stock.next_buy_trigger_price);
-  return nextPrice === "-" ? "未触发" : `等 ${nextPrice}`;
+  return "未触发";
 };
 
 const formatFeedbackFactors = (stock) => {
