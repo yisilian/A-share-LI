@@ -19,6 +19,7 @@ const DEFAULT_AUTO_SETTINGS = {
   trailingStopPct: 0.06,
   morningSlippagePct: 0.002,
   sellSlippagePct: 0.002,
+  buyPlanValidDays: 3,
   reduceScoreThreshold: 6.8,
   exitScoreThreshold: 6.2,
   maxHoldDays: 10,
@@ -315,6 +316,10 @@ function normalizeAutoSettings(raw = {}) {
     trailingStopPct: clampPercent(raw.trailingStopPct, DEFAULT_AUTO_SETTINGS.trailingStopPct, 0.01, 0.3),
     morningSlippagePct: clampPercent(raw.morningSlippagePct, DEFAULT_AUTO_SETTINGS.morningSlippagePct, 0, 0.02),
     sellSlippagePct: clampPercent(raw.sellSlippagePct, DEFAULT_AUTO_SETTINGS.sellSlippagePct, 0, 0.02),
+    buyPlanValidDays: Math.max(
+      1,
+      Math.min(10, Math.floor(Number(raw.buyPlanValidDays ?? DEFAULT_AUTO_SETTINGS.buyPlanValidDays)) || DEFAULT_AUTO_SETTINGS.buyPlanValidDays)
+    ),
     reduceScoreThreshold: Math.max(0, Math.min(10, Number(raw.reduceScoreThreshold ?? DEFAULT_AUTO_SETTINGS.reduceScoreThreshold))),
     exitScoreThreshold: Math.max(0, Math.min(10, Number(raw.exitScoreThreshold ?? DEFAULT_AUTO_SETTINGS.exitScoreThreshold))),
     maxHoldDays: Math.max(1, Math.min(60, Math.floor(Number(raw.maxHoldDays ?? DEFAULT_AUTO_SETTINGS.maxHoldDays)) || DEFAULT_AUTO_SETTINGS.maxHoldDays)),
@@ -335,10 +340,14 @@ function normalizePendingBuyOrders(raw = []) {
         signalPhase: order.signalPhase || "",
         createdRunKey: order.createdRunKey || "",
         plannedExecutionPhase: order.plannedExecutionPhase || "morning_entry",
+        validUntilDate: order.validUntilDate || (order.signalDate ? buyPlanValidUntilDate(order.signalDate) : ""),
         plannedEntryPrice: isFiniteNumber(order.plannedEntryPrice) ? Number(order.plannedEntryPrice) : null,
         maxBuyPrice: isFiniteNumber(order.maxBuyPrice) ? Number(order.maxBuyPrice) : null,
         noChasePrice: isFiniteNumber(order.noChasePrice) ? Number(order.noChasePrice) : null,
         score: isFiniteNumber(order.score) ? Number(order.score) : null,
+        buySignalKey: order.buySignalKey || "",
+        statusKey: order.statusKey || "",
+        entrySafetyBlockBuy: Boolean(order.entrySafetyBlockBuy),
         reason: order.reason || "",
         cancelReason: order.cancelReason || "",
         executedAt: order.executedAt || "",
@@ -392,6 +401,7 @@ function normalizeDecisionJournal(raw = []) {
         plannedEntryPrice: isFiniteNumber(record.plannedEntryPrice) ? Number(record.plannedEntryPrice) : null,
         maxBuyPrice: isFiniteNumber(record.maxBuyPrice) ? Number(record.maxBuyPrice) : null,
         noChasePrice: isFiniteNumber(record.noChasePrice) ? Number(record.noChasePrice) : null,
+        validUntilDate: record.validUntilDate || "",
         snapshotPrice: isFiniteNumber(record.snapshotPrice) ? Number(record.snapshotPrice) : null,
         executionPrice: isFiniteNumber(record.executionPrice) ? Number(record.executionPrice) : null,
         stopLossPrice: isFiniteNumber(record.stopLossPrice) ? Number(record.stopLossPrice) : null,
@@ -460,6 +470,47 @@ function currentTradeDate() {
   return state.data?.as_of_date || new Date().toISOString().slice(0, 10);
 }
 
+function parseDateText(value) {
+  const date = new Date(`${value || ""}T00:00:00`);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function formatDateText(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function addCalendarDays(dateText, days) {
+  const date = parseDateText(dateText) || parseDateText(currentTradeDate()) || new Date();
+  date.setDate(date.getDate() + Number(days || 0));
+  return formatDateText(date);
+}
+
+function compareDateText(left, right) {
+  const leftDate = parseDateText(left);
+  const rightDate = parseDateText(right);
+  if (!leftDate || !rightDate) return 0;
+  return leftDate.getTime() - rightDate.getTime();
+}
+
+function buyPlanValidUntilDate(signalDate, validDays = DEFAULT_AUTO_SETTINGS.buyPlanValidDays) {
+  return addCalendarDays(signalDate || currentTradeDate(), Math.max(1, Number(validDays || DEFAULT_AUTO_SETTINGS.buyPlanValidDays)));
+}
+
+function ensureBuyOrderValidUntil(order) {
+  if (!order.validUntilDate) {
+    order.validUntilDate = buyPlanValidUntilDate(order.signalDate || currentTradeDate(), autoSettings().buyPlanValidDays);
+  }
+  return order.validUntilDate;
+}
+
+function isBuyOrderExpired(order, tradeDate = currentTradeDate()) {
+  const validUntilDate = ensureBuyOrderValidUntil(order);
+  return compareDateText(tradeDate, validUntilDate) > 0;
+}
+
 function stocks() {
   return state.data?.stocks || [];
 }
@@ -486,6 +537,33 @@ function latestPriceFor(code) {
   const candidates = [stock?.live_quote_price, stock?.close, stock?.daily_close, review?.latest_price];
   const price = candidates.find((candidate) => isFiniteNumber(candidate) && Number(candidate) > 0);
   return price ? Number(price) : null;
+}
+
+function buyOrderStockSnapshot(order) {
+  const stock = findStock(order.code);
+  if (stock) return { stock, inLatestPool: true, hasFreshPrice: true };
+  const review = findReviewRecord(order.code);
+  if (!review) return { stock: null, inLatestPool: false, hasFreshPrice: false };
+  const hasFreshPrice = review.latest_date === currentTradeDate() && isFiniteNumber(review.latest_price) && Number(review.latest_price) > 0;
+  return {
+    stock: {
+      code: order.code,
+      name: order.name || review.name || order.code,
+      close: review.latest_price,
+      live_quote_price: review.latest_price,
+      recommended_entry_price: order.plannedEntryPrice || review.first_recommended_entry_price,
+      buyable_price: order.plannedEntryPrice || review.first_buyable_price,
+      buyable_price_upper: order.maxBuyPrice || review.first_entry_price_upper,
+      no_chase_price: order.noChasePrice || review.first_entry_price_upper,
+      score: order.score || review.review_rank || 0,
+      buy_signal_key: order.buySignalKey || review.first_buy_signal_key || "",
+      status_key: order.statusKey || review.first_status_key || "",
+      entry_safety_block_buy: Boolean(order.entrySafetyBlockBuy || review.first_entry_safety_block_buy),
+      fromReviewOnly: true,
+    },
+    inLatestPool: false,
+    hasFreshPrice,
+  };
 }
 
 function suggestedTradePrice(stock) {
@@ -800,7 +878,11 @@ function runAutoStrategy({ force = false, quiet = false } = {}) {
   ensureSellPlans(runKey);
 
   if (phase === "evening_watch") {
-    expirePendingBuyOrders(events);
+    expirePendingBuyOrders(events, {
+      expiredOnly: true,
+      reason: "待买计划超过有效期，自动清理",
+      summaryPrefix: "过期待买计划清理",
+    });
     createEveningBuyPlans(runKey, events);
     ensureSellPlans(runKey, { log: true, events });
   } else if (phase === "morning_entry") {
@@ -810,8 +892,9 @@ function runAutoStrategy({ force = false, quiet = false } = {}) {
     executeAfternoonSellPlans(events);
     executePendingBuyOrders(runKey, events, { mode: "afternoon_final" });
     expirePendingBuyOrders(events, {
-      reason: "14:30买入窗口结束，未触发的待买计划过期",
-      summaryPrefix: "买入窗口结束，未触发待买计划过期",
+      expiredOnly: true,
+      reason: "待买计划超过有效期，自动清理",
+      summaryPrefix: "过期待买计划清理",
     });
   } else {
     events.push({ type: "idle", summary: `${phaseLabel(phase)}：仅更新持仓高点，不执行买卖` });
@@ -881,11 +964,14 @@ function buildSellPlan(position, stock, runKey, existing = {}) {
 }
 
 function expirePendingBuyOrders(events, options = {}) {
-  const reason = options.reason || "20点生成新计划，旧待买计划过期";
+  const reason = options.reason || "待买计划超过有效期，自动清理";
   const summaryPrefix = options.summaryPrefix || "旧待买计划过期";
+  const expiredOnly = options.expiredOnly !== false;
   let expired = 0;
   state.simulation.pendingBuyOrders = (state.simulation.pendingBuyOrders || []).map((order) => {
     if (order.status === "pending") {
+      ensureBuyOrderValidUntil(order);
+      if (expiredOnly && !isBuyOrderExpired(order)) return order;
       expired += 1;
       const expiredOrder = { ...order, status: "expired", cancelReason: reason };
       pushDecisionRecord({
@@ -898,6 +984,7 @@ function expirePendingBuyOrders(events, options = {}) {
         plannedEntryPrice: expiredOrder.plannedEntryPrice,
         maxBuyPrice: expiredOrder.maxBuyPrice,
         noChasePrice: expiredOrder.noChasePrice,
+        validUntilDate: expiredOrder.validUntilDate,
         score: expiredOrder.score,
       });
       return expiredOrder;
@@ -924,14 +1011,21 @@ function createEveningBuyPlans(runKey, events) {
     .slice(0, limit)
     .map((stock) => buildPendingBuyOrder(stock, runKey));
 
+  const refreshedCodes = new Set(orders.map((order) => String(order.code)));
+  const stillValidPending = (state.simulation.pendingBuyOrders || []).filter(
+    (order) => order.status === "pending" && !refreshedCodes.has(String(order.code)) && !isBuyOrderExpired(order)
+  );
   state.simulation.pendingBuyOrders = [
     ...orders,
+    ...stillValidPending,
     ...(state.simulation.pendingBuyOrders || []).filter((order) => order.status !== "pending").slice(0, 30),
   ].slice(0, 50);
 
   events.push({
     type: "buy_plan",
-    summary: orders.length ? `生成次日买入复检计划${orders.length}只：${orders.map((order) => order.name).join("、")}` : "没有符合条件的次日待买计划",
+    summary: orders.length
+      ? `生成次日买入复检计划${orders.length}只：${orders.map((order) => order.name).join("、")}；保留有效旧计划${stillValidPending.length}只`
+      : `没有符合条件的次日待买计划；保留有效旧计划${stillValidPending.length}只`,
   });
   orders.forEach((order) => {
     pushDecisionRecord({
@@ -944,6 +1038,7 @@ function createEveningBuyPlans(runKey, events) {
       plannedEntryPrice: order.plannedEntryPrice,
       maxBuyPrice: order.maxBuyPrice,
       noChasePrice: order.noChasePrice,
+      validUntilDate: order.validUntilDate,
       score: order.score,
     });
   });
@@ -980,6 +1075,7 @@ function afternoonBuyBlockReason(stock) {
 
 function buildPendingBuyOrder(stock, runKey, options = {}) {
   const actionable = options.actionable ?? isActionableBuySignal(stock);
+  const signalDate = currentTradeDate();
   const plannedEntryPrice = actionable
     ? firstFinite(stock.buyable_price, stock.close, stock.recommended_entry_price)
     : firstFinite(stock.recommended_entry_price, stock.buyable_price, stock.close);
@@ -1005,14 +1101,18 @@ function buildPendingBuyOrder(stock, runKey, options = {}) {
     code: stock.code,
     name: stock.name,
     status: "pending",
-    signalDate: currentTradeDate(),
+    signalDate,
     signalPhase: options.signalPhase || "evening_watch",
     createdRunKey: options.createdRunKey || runKey,
     plannedExecutionPhase: "morning_entry",
+    validUntilDate: options.validUntilDate || buyPlanValidUntilDate(signalDate, autoSettings().buyPlanValidDays),
     plannedEntryPrice,
     maxBuyPrice: safeMaxBuyPrice,
     noChasePrice: firstFinite(stock.no_chase_price),
     score: Number(stock.score || 0),
+    buySignalKey: stock.buy_signal_key || "",
+    statusKey: stock.status_key || "",
+    entrySafetyBlockBuy: Boolean(stock.entry_safety_block_buy),
     reason: `${options.reasonPrefix || "20点计划"}：${stock.buy_signal_label || stock.intervention_status || "模型候选"}`,
   };
 }
@@ -1034,21 +1134,46 @@ function executePendingBuyOrders(runKey, events, options = {}) {
   }
 
   pendingOrders.forEach((order) => {
-    const stock = findStock(order.code);
-    const price = latestPriceFor(order.code);
-    if (!stock || !price) {
-      markOrderCancelled(order, `缺少${buyCheckLabel}执行价格或股票不在最新池`);
-      events.push({ type: "buy_cancel", code: order.code, summary: `${order.name}取消买入：缺少${buyCheckLabel}执行价格` });
+    ensureBuyOrderValidUntil(order);
+    if (isBuyOrderExpired(order)) {
+      order.status = "expired";
+      order.cancelReason = "待买计划超过有效期，自动清理";
+      events.push({ type: "expire", code: order.code, summary: `${order.name}待买计划过期` });
       pushDecisionRecord({
-        type: "buy_cancelled",
-        status: "cancelled",
+        type: "buy_plan_expired",
+        status: "expired",
         code: order.code,
         name: order.name,
-        summary: `${order.name}取消买入`,
+        summary: `${order.name}待买计划过期`,
         reason: order.cancelReason,
         plannedEntryPrice: order.plannedEntryPrice,
         maxBuyPrice: order.maxBuyPrice,
         noChasePrice: order.noChasePrice,
+        validUntilDate: order.validUntilDate,
+        score: order.score,
+      });
+      return;
+    }
+
+    const snapshot = buyOrderStockSnapshot(order);
+    const stock = snapshot.stock;
+    const price = latestPriceFor(order.code);
+    if (!stock || !price || !snapshot.hasFreshPrice) {
+      const reason = !stock
+        ? `缺少${buyCheckLabel}执行价格，计划有效至${order.validUntilDate}`
+        : `暂缺${buyCheckLabel}当天新价格，计划有效至${order.validUntilDate}`;
+      events.push({ type: "buy_wait", code: order.code, summary: `${order.name}继续等待：${reason}` });
+      pushDecisionRecord({
+        type: "buy_deferred",
+        status: "pending",
+        code: order.code,
+        name: order.name,
+        summary: `${order.name}等待下一次买入复检`,
+        reason,
+        plannedEntryPrice: order.plannedEntryPrice,
+        maxBuyPrice: order.maxBuyPrice,
+        noChasePrice: order.noChasePrice,
+        validUntilDate: order.validUntilDate,
         score: order.score,
       });
       return;
@@ -1057,17 +1182,19 @@ function executePendingBuyOrders(runKey, events, options = {}) {
     const riskDecision = autoBuyDecisionFromPlan(stock, order, price, options);
     if (!riskDecision.shouldBuy) {
       if (riskDecision.action === "wait") {
-        events.push({ type: "buy_wait", code: order.code, summary: `${order.name}继续等待：${riskDecision.reason}` });
+        const poolNote = snapshot.inLatestPool ? "" : "；股票暂不在最新池，按原计划继续跟踪";
+        events.push({ type: "buy_wait", code: order.code, summary: `${order.name}继续等待：${riskDecision.reason}${poolNote}` });
         pushDecisionRecord({
           type: "buy_deferred",
           status: "pending",
           code: order.code,
           name: order.name,
           summary: `${order.name}等待下一次买入复检`,
-          reason: riskDecision.reason,
+          reason: `${riskDecision.reason}${poolNote}`,
           plannedEntryPrice: order.plannedEntryPrice,
           maxBuyPrice: order.maxBuyPrice,
           noChasePrice: order.noChasePrice,
+          validUntilDate: order.validUntilDate,
           snapshotPrice: price,
           score: order.score,
         });
@@ -1085,6 +1212,7 @@ function executePendingBuyOrders(runKey, events, options = {}) {
         plannedEntryPrice: order.plannedEntryPrice,
         maxBuyPrice: order.maxBuyPrice,
         noChasePrice: order.noChasePrice,
+        validUntilDate: order.validUntilDate,
         snapshotPrice: price,
         score: order.score,
       });
@@ -1103,6 +1231,7 @@ function executePendingBuyOrders(runKey, events, options = {}) {
         plannedEntryPrice: order.plannedEntryPrice,
         maxBuyPrice: order.maxBuyPrice,
         noChasePrice: order.noChasePrice,
+        validUntilDate: order.validUntilDate,
         snapshotPrice: price,
         score: order.score,
       });
@@ -1125,6 +1254,7 @@ function executePendingBuyOrders(runKey, events, options = {}) {
         plannedEntryPrice: order.plannedEntryPrice,
         maxBuyPrice: order.maxBuyPrice,
         noChasePrice: order.noChasePrice,
+        validUntilDate: order.validUntilDate,
         snapshotPrice: price,
         executionPrice: riskDecision.price,
         score: order.score,
@@ -1146,6 +1276,7 @@ function executePendingBuyOrders(runKey, events, options = {}) {
         plannedEntryPrice: order.plannedEntryPrice,
         maxBuyPrice: order.maxBuyPrice,
         noChasePrice: order.noChasePrice,
+        validUntilDate: order.validUntilDate,
         snapshotPrice: price,
         executionPrice: riskDecision.price,
         quantity,
@@ -1175,6 +1306,7 @@ function executePendingBuyOrders(runKey, events, options = {}) {
       plannedEntryPrice: order.plannedEntryPrice,
       maxBuyPrice: order.maxBuyPrice,
       noChasePrice: order.noChasePrice,
+      validUntilDate: order.validUntilDate,
       snapshotPrice: price,
       executionPrice: riskDecision.price,
       stopLossPrice: result.stopLossPrice,
@@ -1225,6 +1357,7 @@ function createMorningFallbackBuyOrders(runKey, events, options = {}) {
       plannedEntryPrice: order.plannedEntryPrice,
       maxBuyPrice: order.maxBuyPrice,
       noChasePrice: order.noChasePrice,
+      validUntilDate: order.validUntilDate,
       score: order.score,
     });
   });
@@ -1776,6 +1909,7 @@ function renderAutoStrategyControls() {
   byId("autoMaxPositionPct").value = formatNumber(settings.maxPositionPct * 100, 0);
   byId("autoMaxStocks").value = String(settings.maxStocks);
   byId("autoMinScore").value = formatNumber(settings.minScore, 1);
+  byId("autoBuyPlanValidDays").value = String(settings.buyPlanValidDays);
   byId("autoStopLossPct").value = formatNumber(settings.stopLossPct * 100, 1);
   byId("autoTakeProfitPct").value = formatNumber(settings.takeProfitPct * 100, 1);
   byId("autoTrailingStopPct").value = formatNumber(settings.trailingStopPct * 100, 1);
@@ -1788,7 +1922,7 @@ function renderAutoStrategyControls() {
   )}，${state.lastRefreshStatus || "等待检查"}。页面关闭或被手机系统挂起后不会后台运行。`;
   byId("autoStrategyNote").textContent = `最近策略检查：${
     state.simulation.lastAutoRunKey ? state.simulation.lastAutoRunKey.split("|")[0] : "尚未执行"
-  }。模型按离散快照执行：每个快照同时观察买入和卖出；10:00/11:20/13:30正常复检买入并预警卖出，14:30先执行卖出/风控，再用更高门槛、小仓位做最后买入复检，20点复盘续订计划。${refreshText}账面收益只扣已发生费用；清仓后收益会额外扣除预计卖出费用。`;
+  }。模型按离散快照执行：待买计划默认有效${settings.buyPlanValidDays}天；每个快照同时观察买入和卖出；10:00/11:20/13:30正常复检买入并预警卖出，14:30先执行卖出/风控，再用更高门槛、小仓位做最后买入复检，20点复盘续订计划。${refreshText}账面收益只扣已发生费用；清仓后收益会额外扣除预计卖出费用。`;
 }
 
 function renderSimulationPositions(positions) {
@@ -1873,22 +2007,25 @@ function renderSimulationPlans() {
   }
 
   const buyRows = pendingOrders.map(
-    (order) => `
-      <article class="simulation-row compact">
-        <div>
-          <strong>待买 ${escapeHtml(order.name)}</strong>
-          <em>${escapeHtml(order.code)} · ${escapeHtml(order.reason || "20点计划")}</em>
-        </div>
-        <div>
-          <span>计划/最高买入价</span>
-          <strong>${formatNumber(order.plannedEntryPrice)} / ${formatNumber(order.maxBuyPrice)}</strong>
-        </div>
-        <div>
-          <span>执行窗口</span>
-          <strong>10:00/11:20/13:30复检，14:30尾盘严格复检</strong>
-        </div>
-      </article>
-    `
+    (order) => {
+      ensureBuyOrderValidUntil(order);
+      return `
+        <article class="simulation-row compact">
+          <div>
+            <strong>待买 ${escapeHtml(order.name)}</strong>
+            <em>${escapeHtml(order.code)} · ${escapeHtml(order.reason || "20点计划")}</em>
+          </div>
+          <div>
+            <span>计划/最高买入价</span>
+            <strong>${formatNumber(order.plannedEntryPrice)} / ${formatNumber(order.maxBuyPrice)}</strong>
+          </div>
+          <div>
+            <span>执行窗口</span>
+            <strong>10:00/11:20/13:30复检，14:30严格复检 · 有效至${escapeHtml(order.validUntilDate || "-")}</strong>
+          </div>
+        </article>
+      `;
+    }
   );
   const sellRows = sellPlans.map(
     (plan) => `
@@ -1936,6 +2073,7 @@ function decisionPriceText(record) {
     labeledNumber("计划", record.plannedEntryPrice),
     labeledNumber("上限", record.maxBuyPrice),
     labeledNumber("不追高", record.noChasePrice),
+    record.validUntilDate ? `有效至${record.validUntilDate}` : "",
     labeledNumber("快照", record.snapshotPrice),
     labeledNumber("执行", record.executionPrice),
   ].filter(Boolean);
@@ -2191,6 +2329,7 @@ function bindSimulationEvents() {
     ["autoMaxPositionPct", "autoSettings", "maxPositionPct", 100],
     ["autoMaxStocks", "autoSettings", "maxStocks", 1],
     ["autoMinScore", "autoSettings", "minScore", 1],
+    ["autoBuyPlanValidDays", "autoSettings", "buyPlanValidDays", 1],
     ["autoStopLossPct", "autoSettings", "stopLossPct", 100],
     ["autoTakeProfitPct", "autoSettings", "takeProfitPct", 100],
     ["autoTrailingStopPct", "autoSettings", "trailingStopPct", 100],
@@ -2208,7 +2347,7 @@ function bindSimulationEvents() {
         ...(group === "autoSettings" ? autoSettings() : feeSettings()),
         [key]: rawValue / divisor,
       };
-      if (key === "maxStocks") state.simulation[group][key] = Math.floor(rawValue);
+      if (key === "maxStocks" || key === "buyPlanValidDays") state.simulation[group][key] = Math.floor(rawValue);
       if (key === "minScore" || key === "minCommission") state.simulation[group][key] = rawValue;
       state.simulation.autoSettings = normalizeAutoSettings(state.simulation.autoSettings);
       state.simulation.feeSettings = normalizeFeeSettings(state.simulation.feeSettings);
