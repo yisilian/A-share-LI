@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import math
 import os
+import re
 import subprocess
 from dataclasses import dataclass, asdict
 from datetime import datetime, timezone, timedelta
@@ -1074,12 +1075,55 @@ def build_universe_scan(candidate_library: list[Candidate]) -> tuple[dict[str, d
     return universe_by_code, payload
 
 
+def fetch_sina_live_quotes(codes: list[str]) -> tuple[dict[str, dict[str, Any]], list[str]]:
+    quotes: dict[str, dict[str, Any]] = {}
+    warnings: list[str] = []
+    symbols = [ak_symbol(code) for code in codes if code]
+    quote_snapshot_at = datetime.now(CN_TZ).isoformat(timespec="seconds")
+    headers = {
+        "Referer": "https://finance.sina.com.cn/",
+        "User-Agent": "Mozilla/5.0",
+    }
+    for start in range(0, len(symbols), 60):
+        chunk = symbols[start : start + 60]
+        if not chunk:
+            continue
+        url = f"https://hq.sinajs.cn/list={','.join(chunk)}"
+        try:
+            response = requests.get(url, headers=headers, timeout=15)
+            response.raise_for_status()
+            response.encoding = response.apparent_encoding or "gb18030"
+        except Exception as exc:
+            warnings.append(f"Sina逐股实时行情获取失败：{compact_error(exc)}")
+            continue
+        for match in re.finditer(r"var hq_str_(?:sh|sz)(\d{6})=\"([^\"]*)\";", response.text):
+            code, payload = match.groups()
+            parts = payload.split(",")
+            if len(parts) < 32:
+                continue
+            close = safe_float(parts[3])
+            quote_date = parts[30].strip()
+            quote_time = parts[31].strip()
+            if close is None or close <= 0 or not quote_date:
+                continue
+            quotes[code] = {
+                "live_close": round_or_none(close),
+                "live_quote_date": quote_date,
+                "live_quote_snapshot_at": quote_snapshot_at,
+                "live_quote_time": quote_time,
+            }
+    return quotes, warnings
+
+
 def select_candidates_from_universe(candidate_library: list[Candidate]) -> tuple[list[Candidate], dict[str, dict[str, Any]], dict[str, Any], list[str]]:
     warnings: list[str] = []
     try:
         universe_by_code, universe_payload = build_universe_scan(candidate_library)
     except Exception as exc:
         warnings.append(f"全主板第一层扫描失败，回退到战略主题库：{exc}")
+        fallback_candidates = candidate_library[:DEEP_ANALYSIS_LIMIT]
+        live_quotes, quote_warnings = fetch_sina_live_quotes([candidate.code for candidate in fallback_candidates])
+        warnings.extend(quote_warnings)
         fallback_meta = {
             candidate.code: {
                 "candidate_source": "主题库兜底",
@@ -1087,9 +1131,9 @@ def select_candidates_from_universe(candidate_library: list[Candidate]) -> tuple
                 "layer_one_rank": None,
                 "layer_one_pct_chg": None,
                 "layer_one_amount": None,
-                "live_quote_date": None,
-                "live_quote_snapshot_at": None,
-                "live_close": None,
+                "live_quote_date": live_quotes.get(candidate.code, {}).get("live_quote_date"),
+                "live_quote_snapshot_at": live_quotes.get(candidate.code, {}).get("live_quote_snapshot_at"),
+                "live_close": live_quotes.get(candidate.code, {}).get("live_close"),
                 "layer_one_bonus": 0.0,
                 "theme_group": theme_group(candidate.theme),
                 "theme_strength_score": None,
@@ -1098,7 +1142,7 @@ def select_candidates_from_universe(candidate_library: list[Candidate]) -> tuple
                 "theme_strength_bonus": 0.0,
                 **empty_fund_flow_meta(),
             }
-            for candidate in candidate_library[:DEEP_ANALYSIS_LIMIT]
+            for candidate in fallback_candidates
         }
         universe_payload = {
             "schema_version": "1.0",
@@ -1111,7 +1155,7 @@ def select_candidates_from_universe(candidate_library: list[Candidate]) -> tuple
             "matched_library_count": len(fallback_meta),
             "shortlist_limit": DEEP_ANALYSIS_LIMIT,
             "export_limit": UNIVERSE_EXPORT_LIMIT,
-            "note": warnings[-1],
+            "note": warnings[0],
             "market_environment": {
                 "label": "市场温度未知",
                 "regime": "unknown",
@@ -1131,7 +1175,13 @@ def select_candidates_from_universe(candidate_library: list[Candidate]) -> tuple
             "top_mainboard": [],
             "matched_library": [],
         }
-        return candidate_library[:DEEP_ANALYSIS_LIMIT], fallback_meta, universe_payload, warnings
+        quote_dates = [quote.get("live_quote_date") for quote in live_quotes.values() if quote.get("live_quote_date")]
+        if quote_dates:
+            universe_payload["market_date"] = max(quote_dates)
+            universe_payload["quote_snapshot_at"] = datetime.now(CN_TZ).isoformat(timespec="seconds")
+            universe_payload["source"] = "fallback + Sina live quotes"
+            universe_payload["note"] = f"{universe_payload['note']} 已用Sina逐股行情补充候选池实时价格。"
+        return fallback_candidates, fallback_meta, universe_payload, warnings
     warnings.extend(universe_payload.get("fund_flow", {}).get("warnings", []))
 
     scored: list[tuple[float, Candidate]] = []
@@ -1168,18 +1218,22 @@ def select_candidates_from_universe(candidate_library: list[Candidate]) -> tuple
     if len(scored) < min(FINAL_POOL_SIZE, 6):
         warnings.append("全主板扫描匹配到的战略候选不足，已用主题库兜底补齐。")
         existing = {candidate.code for _, candidate in scored}
+        supplement_candidates = [candidate for candidate in candidate_library if candidate.code not in existing]
+        live_quotes, quote_warnings = fetch_sina_live_quotes([candidate.code for candidate in supplement_candidates[:DEEP_ANALYSIS_LIMIT]])
+        warnings.extend(quote_warnings)
         for candidate in candidate_library:
             if candidate.code in existing:
                 continue
+            live_quote = live_quotes.get(candidate.code, {})
             meta_by_code[candidate.code] = {
                 "candidate_source": "主题库补齐",
                 "layer_one_score": None,
                 "layer_one_rank": None,
                 "layer_one_pct_chg": None,
                 "layer_one_amount": None,
-                "live_quote_date": None,
-                "live_quote_snapshot_at": None,
-                "live_close": None,
+                "live_quote_date": live_quote.get("live_quote_date"),
+                "live_quote_snapshot_at": live_quote.get("live_quote_snapshot_at"),
+                "live_close": live_quote.get("live_close"),
                 "layer_one_bonus": 0.0,
                 "theme_group": theme_group(candidate.theme),
                 "theme_strength_score": None,
