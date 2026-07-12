@@ -64,7 +64,7 @@ jobs:
 
           changed_files="$(git diff --name-only "${{ github.event.before }}" "${{ github.sha }}" || true)"
           echo "$changed_files"
-          if echo "$changed_files" | grep -Eq '^(scripts/|requirements\.txt$|\.github/workflows/update-data\.yml$)'; then
+          if echo "$changed_files" | grep -Eq '^(scripts/|requirements\.txt$)'; then
             echo "run_generator=true" >> "$GITHUB_OUTPUT"
             echo "Generator-affecting files changed: regenerate data."
           else
