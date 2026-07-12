@@ -104,6 +104,8 @@ function refreshReasonLabel(reason) {
     initial: "首次加载",
     manual: "手动检查",
     online: "恢复联网检查",
+    focus: "页面重新聚焦检查",
+    pageshow: "页面恢复检查",
     visible: "回到前台检查",
   };
   return labels[reason] || "手动检查";
@@ -509,6 +511,34 @@ function ensureBuyOrderValidUntil(order) {
 function isBuyOrderExpired(order, tradeDate = currentTradeDate()) {
   const validUntilDate = ensureBuyOrderValidUntil(order);
   return compareDateText(tradeDate, validUntilDate) > 0;
+}
+
+function currentCalendarDateText() {
+  return formatDateText(new Date());
+}
+
+function weekdayLabel(dateText) {
+  const labels = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
+  const date = parseDateText(dateText);
+  return date ? labels[date.getDay()] : "";
+}
+
+function isWeekendDate(dateText) {
+  const date = parseDateText(dateText);
+  if (!date) return false;
+  const day = date.getDay();
+  return day === 0 || day === 6;
+}
+
+function marketFreshnessNote(data) {
+  const asOfDate = data?.as_of_date;
+  if (!asOfDate) return "";
+  const today = currentCalendarDateText();
+  if (compareDateText(asOfDate, today) >= 0) return "";
+  if (isWeekendDate(today)) {
+    return `；今天${weekdayLabel(today)}休市，显示最近交易日 ${asOfDate} 的数据属于正常情况`;
+  }
+  return `；数据日期早于今天 ${today}，请等待下一次 GitHub 更新或手动刷新`;
 }
 
 function stocks() {
@@ -1692,6 +1722,7 @@ function renderModelStatus(data) {
         .join("、")}`
     : "";
   const phaseText = data.universe_scan?.update_phase_label ? `；更新时间段：${data.universe_scan.update_phase_label}` : "";
+  const freshnessText = marketFreshnessNote(data);
   const exposureText = data.summary?.theme_exposure
     ? `；最终主题分布：${Object.entries(data.summary.theme_exposure)
         .map(([key, value]) => `${key}${value}`)
@@ -1709,7 +1740,7 @@ function renderModelStatus(data) {
 
   byId("sourceStatus").textContent = `更新时间：${data.generated_at || "-"}${phaseText}；市场温度：${
     marketEnvironment.label || "-"
-  } / ${formatSignedNumber(marketEnvironment.temperature_score, 2)}；${marketEnvironment.note || ""}${topThemeText}${exposureText}${concentrationText}；数据源：${
+  } / ${formatSignedNumber(marketEnvironment.temperature_score, 2)}${freshnessText}；${marketEnvironment.note || ""}${topThemeText}${exposureText}${concentrationText}；数据源：${
     data.source_status?.quotes || "-"
   }；${data.source_status?.note || ""}`;
 
@@ -2361,16 +2392,26 @@ function bindSimulationEvents() {
 function scheduleAutoRefresh() {
   if (state.refreshTimer) window.clearInterval(state.refreshTimer);
 
-  state.refreshTimer = window.setInterval(() => {
+  const refreshIfVisible = (reason) => {
     if (document.visibilityState === "visible") {
-      loadPool({ silent: true, reason: "auto" });
+      loadPool({ silent: true, reason });
     }
+  };
+
+  state.refreshTimer = window.setInterval(() => {
+    refreshIfVisible("auto");
   }, AUTO_REFRESH_INTERVAL_MS);
 
   document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible") {
-      loadPool({ silent: true, reason: "visible" });
-    }
+    refreshIfVisible("visible");
+  });
+
+  window.addEventListener("focus", () => {
+    refreshIfVisible("focus");
+  });
+
+  window.addEventListener("pageshow", () => {
+    refreshIfVisible("pageshow");
   });
 
   window.addEventListener("online", () => {
