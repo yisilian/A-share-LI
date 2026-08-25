@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0",
-  "generated_at": "2026-08-25T12:09:38+08:00",
+  "generated_at": "2026-08-25T14:04:26+08:00",
   "source": "fallback + Sina live quotes",
   "scope": "战略主题库",
   "raw_count": 0,
@@ -29,7 +29,7 @@
   "top_mainboard": [],
   "matched_library": [],
   "market_date": "2026-08-25",
-  "quote_snapshot_at": "2026-08-25T12:09:38+08:00",
+  "quote_snapshot_at": "2026-08-25T14:04:26+08:00",
   "update_phase": "morning_entry",
-  "update_phase_label": "11:20午前买入复检"
+  "update_phase_label": "13:30午后买入复检"
 }
