@@ -1,12 +1,12 @@
 {
   "schema_version": "1.0",
-  "generated_at": "2026-11-06T16:55:31+08:00",
+  "generated_at": "2026-11-06T17:19:43+08:00",
   "as_of_date": "2026-11-06",
   "summary": {
     "tracked_count": 50,
     "active_count": 10,
     "exited_count": 40,
-    "average_return_pct": -12.87,
+    "average_return_pct": -12.86,
     "positive_count": 15,
     "negative_count": 35,
     "attribution_counts": {
@@ -122,9 +122,9 @@
       "last_seen_rank": 5,
       "latest_date": "2026-11-06",
       "latest_price": 48.93,
-      "latest_source": "current_pool",
+      "latest_source": "history_snapshot",
       "tracking_days": 133,
-      "snapshot_count": 62,
+      "snapshot_count": 63,
       "return_since_first_pct": 21.29,
       "max_return_since_first_pct": 21.29,
       "drawdown_from_peak_pct": 0.0,
@@ -137,7 +137,8 @@
         "primary": "positive_validation",
         "theme_group": "军工船舶",
         "factors": [
-          "entry_price_better_than_first_recommend"
+          "entry_price_better_than_first_recommend",
+          "latest_quote_from_history_snapshot"
         ],
         "model_action": "方向验证为正，同时保留接入价纪律，避免首推价过高。"
       },
@@ -234,9 +235,9 @@
       "last_seen_rank": 9,
       "latest_date": "2026-11-06",
       "latest_price": 23.78,
-      "latest_source": "current_pool",
+      "latest_source": "history_snapshot",
       "tracking_days": 133,
-      "snapshot_count": 45,
+      "snapshot_count": 46,
       "return_since_first_pct": 19.44,
       "max_return_since_first_pct": 20.29,
       "drawdown_from_peak_pct": -0.71,
@@ -249,7 +250,8 @@
         "primary": "positive_validation",
         "theme_group": "军工船舶",
         "factors": [
-          "direction_validated"
+          "direction_validated",
+          "latest_quote_from_history_snapshot"
         ],
         "model_action": "正反馈保留，但不提高到确定性结论。"
       },
@@ -571,9 +573,9 @@
       "last_seen_rank": 8,
       "latest_date": "2026-11-06",
       "latest_price": 25.63,
-      "latest_source": "current_pool",
+      "latest_source": "history_snapshot",
       "tracking_days": 136,
-      "snapshot_count": 43,
+      "snapshot_count": 44,
       "return_since_first_pct": 8.33,
       "max_return_since_first_pct": 13.82,
       "drawdown_from_peak_pct": -4.83,
@@ -586,7 +588,8 @@
         "primary": "positive_validation",
         "theme_group": "消费医药",
         "factors": [
-          "entry_price_better_than_first_recommend"
+          "entry_price_better_than_first_recommend",
+          "latest_quote_from_history_snapshot"
         ],
         "model_action": "方向验证为正，同时保留接入价纪律，避免首推价过高。"
       },
@@ -627,9 +630,9 @@
       "last_seen_rank": 6,
       "latest_date": "2026-11-06",
       "latest_price": 39.02,
-      "latest_source": "current_pool",
+      "latest_source": "history_snapshot",
       "tracking_days": 133,
-      "snapshot_count": 48,
+      "snapshot_count": 49,
       "return_since_first_pct": 5.4,
       "max_return_since_first_pct": 12.43,
       "drawdown_from_peak_pct": -6.25,
@@ -642,7 +645,8 @@
         "primary": "positive_validation",
         "theme_group": "消费医药",
         "factors": [
-          "entry_price_better_than_first_recommend"
+          "entry_price_better_than_first_recommend",
+          "latest_quote_from_history_snapshot"
         ],
         "model_action": "方向验证为正，同时保留接入价纪律，避免首推价过高。"
       },
@@ -683,9 +687,9 @@
       "last_seen_rank": 10,
       "latest_date": "2026-11-06",
       "latest_price": 54.5,
-      "latest_source": "current_pool",
+      "latest_source": "history_snapshot",
       "tracking_days": 137,
-      "snapshot_count": 54,
+      "snapshot_count": 55,
       "return_since_first_pct": 4.85,
       "max_return_since_first_pct": 10.1,
       "drawdown_from_peak_pct": -4.77,
@@ -698,7 +702,8 @@
         "primary": "neutral_tracking",
         "theme_group": "大金融",
         "factors": [
-          "inside_validation_band"
+          "inside_validation_band",
+          "latest_quote_from_history_snapshot"
         ],
         "model_action": "继续观察，不作强反馈。"
       },
@@ -733,18 +738,18 @@
       "first_entry_safety_risk_flag": null,
       "first_entry_safety_block_buy": null,
       "first_entry_reference_type": "recommended_entry_price",
-      "entry_return_from_first_entry_pct": 8.87,
+      "entry_return_from_first_entry_pct": 9.39,
       "entry_drawdown_from_first_entry_pct": -1.04,
       "last_seen_in_pool_date": "2026-11-06",
-      "last_seen_rank": 3,
+      "last_seen_rank": 7,
       "latest_date": "2026-11-06",
-      "latest_price": 50.19,
+      "latest_price": 50.43,
       "latest_source": "history_snapshot",
       "tracking_days": 141,
-      "snapshot_count": 81,
-      "return_since_first_pct": 3.66,
+      "snapshot_count": 82,
+      "return_since_first_pct": 4.15,
       "max_return_since_first_pct": 18.75,
-      "drawdown_from_peak_pct": -12.71,
+      "drawdown_from_peak_pct": -12.3,
       "best_close": 57.5,
       "best_date": "2026-07-15",
       "worst_close": 45.62,
@@ -796,9 +801,9 @@
       "last_seen_rank": 2,
       "latest_date": "2026-11-06",
       "latest_price": 23.86,
-      "latest_source": "current_pool",
+      "latest_source": "history_snapshot",
       "tracking_days": 141,
-      "snapshot_count": 105,
+      "snapshot_count": 106,
       "return_since_first_pct": 3.47,
       "max_return_since_first_pct": 8.72,
       "drawdown_from_peak_pct": -4.83,
@@ -811,7 +816,8 @@
         "primary": "neutral_tracking",
         "theme_group": "电力设备",
         "factors": [
-          "inside_validation_band"
+          "inside_validation_band",
+          "latest_quote_from_history_snapshot"
         ],
         "model_action": "继续观察，不作强反馈。"
       },
@@ -969,10 +975,10 @@
       "tracking_days": 130,
       "snapshot_count": 16,
       "return_since_first_pct": -0.83,
-      "max_return_since_first_pct": 0.28,
-      "drawdown_from_peak_pct": -1.1,
-      "best_close": 7.25,
-      "best_date": "2026-11-06",
+      "max_return_since_first_pct": 0.0,
+      "drawdown_from_peak_pct": -0.83,
+      "best_close": 7.23,
+      "best_date": "2026-06-29",
       "worst_close": 7.15,
       "worst_date": "2026-10-27",
       "review_status": "已调出-负收益",
@@ -1134,9 +1140,9 @@
       "last_seen_rank": 4,
       "latest_date": "2026-11-06",
       "latest_price": 35.17,
-      "latest_source": "current_pool",
+      "latest_source": "history_snapshot",
       "tracking_days": 141,
-      "snapshot_count": 58,
+      "snapshot_count": 59,
       "return_since_first_pct": -2.68,
       "max_return_since_first_pct": 13.5,
       "drawdown_from_peak_pct": -14.26,
@@ -1149,7 +1155,8 @@
         "primary": "neutral_tracking",
         "theme_group": "军工船舶",
         "factors": [
-          "inside_validation_band"
+          "inside_validation_band",
+          "latest_quote_from_history_snapshot"
         ],
         "model_action": "继续观察，不作强反馈。"
       },
@@ -1719,9 +1726,9 @@
       "last_seen_rank": 3,
       "latest_date": "2026-11-06",
       "latest_price": 18.92,
-      "latest_source": "current_pool",
+      "latest_source": "history_snapshot",
       "tracking_days": 141,
-      "snapshot_count": 11,
+      "snapshot_count": 12,
       "return_since_first_pct": -18.87,
       "max_return_since_first_pct": 7.55,
       "drawdown_from_peak_pct": -24.56,
@@ -1736,6 +1743,7 @@
         "factors": [
           "entry_price_adverse_drawdown",
           "entry_price_failed",
+          "latest_quote_from_history_snapshot",
           "post_recommend_drawdown_too_deep",
           "profit_not_protected",
           "still_active_negative_feedback"
@@ -1773,18 +1781,18 @@
       "first_entry_safety_risk_flag": null,
       "first_entry_safety_block_buy": null,
       "first_entry_reference_type": "recommended_entry_price",
-      "entry_return_from_first_entry_pct": -11.08,
+      "entry_return_from_first_entry_pct": -11.24,
       "entry_drawdown_from_first_entry_pct": -24.12,
       "last_seen_in_pool_date": "2026-11-06",
-      "last_seen_rank": 2,
+      "last_seen_rank": 1,
       "latest_date": "2026-11-06",
-      "latest_price": 561.01,
+      "latest_price": 560.0,
       "latest_source": "history_snapshot",
       "tracking_days": 141,
-      "snapshot_count": 100,
-      "return_since_first_pct": -22.19,
+      "snapshot_count": 101,
+      "return_since_first_pct": -22.33,
       "max_return_since_first_pct": 29.72,
-      "drawdown_from_peak_pct": -40.02,
+      "drawdown_from_peak_pct": -40.13,
       "best_close": 935.36,
       "best_date": "2026-07-01",
       "worst_close": 478.74,
